@@ -1,0 +1,17 @@
+[
+  {
+    "id": "9d84a5e3-9821-423a-835e-284b4afd3159",
+    "companyName": "Flo Financial Tax Services",
+    "email": "Tj@flofinancial.com",
+    "passwordHash": "16e1c02e2ef0436c2bfca1266f008fa4db15ccd8ca7b0aa3892d28f137295294",
+    "website": "https://flo-financial.com",
+    "createdAt": "2025-11-29T23:48:32.755Z",
+    "settings": {
+      "phone": "",
+      "mainWebsiteUrl": "",
+      "primaryColor": "#1e3a5f",
+      "accentColor": "#22c55e"
+    },
+    "slug": "flo-financial"
+  }
+]
