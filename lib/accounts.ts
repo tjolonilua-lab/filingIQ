@@ -160,7 +160,7 @@ export async function findAccountBySlug(slug: string): Promise<CompanyAccount | 
 // Update account settings
 export async function updateAccountSettings(
   accountId: string,
-  settings: Partial<CompanyAccount['settings']> & { formConfig?: FormConfiguration | null }
+  settings: Partial<CompanyAccount['settings']> & { formConfig?: FormConfiguration | null | undefined }
 ): Promise<CompanyAccount> {
   const accounts = await loadAccounts()
   const accountIndex = accounts.findIndex(acc => acc.id === accountId)
@@ -169,8 +169,8 @@ export async function updateAccountSettings(
     throw new Error('Account not found')
   }
 
-  // If formConfig is explicitly null, remove it from settings
-  if ('formConfig' in settings && settings.formConfig === null) {
+  // If formConfig is explicitly null or undefined, remove it from settings
+  if ('formConfig' in settings && (settings.formConfig === null || settings.formConfig === undefined)) {
     const updatedSettings = { ...accounts[accountIndex].settings }
     delete updatedSettings.formConfig
     accounts[accountIndex].settings = {

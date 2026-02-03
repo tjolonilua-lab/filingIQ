@@ -81,8 +81,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Clear custom config by setting it to null (will use default)
-    await updateAccountSettings(accountId, { formConfig: null })
+    // Clear custom config by setting it to undefined (will use default)
+    await updateAccountSettings(accountId, { formConfig: undefined })
     
     return NextResponse.json({
       success: true,
