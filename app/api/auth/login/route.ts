@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { findAccountByEmail, createAccount } from '@/lib/accounts'
+import { findAccountByEmail, createAccount, verifyPassword } from '@/lib/accounts'
 import { z } from 'zod'
 
 const loginSchema = z.object({
@@ -35,14 +35,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Skip password verification in development mode
-    // In production, uncomment this:
-    // if (!verifyPassword(validated.password, account.passwordHash)) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'Invalid email or password' },
-    //     { status: 401 }
-    //   )
-    // }
+    // Verify password
+    if (!(await verifyPassword(validated.password, account.passwordHash))) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid email or password' },
+        { status: 401 }
+      )
+    }
 
     // Return account (without password hash)
     const { passwordHash, ...accountWithoutPassword } = account

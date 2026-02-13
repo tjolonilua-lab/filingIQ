@@ -43,14 +43,18 @@ async function ensureAccountsDir() {
   }
 }
 
-// Simple password hashing (in production, use bcrypt)
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password + process.env.PASSWORD_SALT || 'default-salt').digest('hex')
+import bcrypt from 'bcryptjs'
+
+// Secure password hashing using bcrypt
+export async function hashPassword(password: string): Promise<string> {
+  // Use 10 rounds (good balance of security and performance)
+  const saltRounds = 10
+  return await bcrypt.hash(password, saltRounds)
 }
 
-// Verify password
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash
+// Verify password against bcrypt hash
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return await bcrypt.compare(password, hash)
 }
 
 // Load all accounts (uses database if available, falls back to file system)
@@ -160,12 +164,13 @@ export async function createAccount(data: {
 
       const accountId = crypto.randomUUID()
       const createdAt = new Date().toISOString()
+      const passwordHash = await hashPassword(data.password)
       
       return await createAccountDB({
         id: accountId,
         companyName: data.companyName,
         email: data.email,
-        passwordHash: hashPassword(data.password),
+        passwordHash: passwordHash,
         website: data.website,
         slug: finalSlug,
         createdAt,
@@ -199,11 +204,13 @@ export async function createAccount(data: {
     counter++
   }
 
+  const passwordHash = await hashPassword(data.password)
+  
   const account: CompanyAccount = {
     id: crypto.randomUUID(),
     companyName: data.companyName,
     email: data.email,
-    passwordHash: hashPassword(data.password),
+    passwordHash: passwordHash,
     website: data.website,
     slug: finalSlug,
     createdAt: new Date().toISOString(),
