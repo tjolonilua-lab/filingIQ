@@ -1,9 +1,9 @@
 import { Resend } from 'resend'
 import type { IntakeSubmission } from './validation'
 
+import { getBusinessBranding } from './branding'
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
-import { getBusinessBranding } from './branding'
 
 export async function sendIntakeEmail(
   intake: IntakeSubmission,
