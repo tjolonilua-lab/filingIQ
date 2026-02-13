@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { getBusinessBranding } from '@/lib/branding'
 import { useToast } from '@/components/ui/Toast'
 import Toast from '@/components/ui/Toast'
+import { clientLogger } from '@/lib/logger-client'
 
 interface SettingsViewProps {
   accountId: string | null
@@ -58,10 +59,10 @@ export default function SettingsView({ accountId }: SettingsViewProps) {
           accentColor: acc.settings?.accentColor || branding.accentColor,
         })
       } else {
-        console.warn('Account settings response missing success or account data:', data)
+        clientLogger.warn('Account settings response missing success or account data', { data })
       }
     } catch (error) {
-      console.error('Error loading account settings:', error)
+      clientLogger.error('Error loading account settings', error instanceof Error ? error : new Error(String(error)))
       // Only show error toast if it's not a network error (which might be expected during initial load)
       if (error instanceof Error && !error.message.includes('Failed to fetch')) {
         showToast('Failed to load account settings. Using default values.', 'error')
@@ -130,7 +131,7 @@ export default function SettingsView({ accountId }: SettingsViewProps) {
       
       showToast('Settings saved successfully!', 'success')
     } catch (error) {
-      console.error('Error saving settings:', error)
+      clientLogger.error('Error saving settings', error instanceof Error ? error : new Error(String(error)))
       showToast(error instanceof Error ? error.message : 'Failed to save settings. Please try again.', 'error')
     } finally {
       setSaving(false)

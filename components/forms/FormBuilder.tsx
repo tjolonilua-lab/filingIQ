@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { FormConfiguration, FormStep, FormField, FieldType, defaultFormConfig, validateFormConfig } from '@/lib/form-config'
 import { useToast } from '@/components/ui/Toast'
+import { clientLogger } from '@/lib/logger-client'
 
 interface FormBuilderProps {
   accountId: string | null
@@ -40,7 +41,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
           }
         }
       } catch (error) {
-        console.error('Error loading form config:', error)
+        clientLogger.error('Error loading form config', error instanceof Error ? error : new Error(String(error)))
       } finally {
         setLoading(false)
       }
@@ -73,7 +74,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
           throw new Error(data.error || 'Failed to save')
         }
       } catch (error) {
-        console.error('Error saving form config:', error)
+        clientLogger.error('Error saving form config', error instanceof Error ? error : new Error(String(error)))
         showToast(error instanceof Error ? error.message : 'Failed to save form configuration', 'error')
       } finally {
         setSaving(false)
@@ -107,7 +108,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
         throw new Error(data.error || 'Failed to save')
       }
     } catch (error) {
-      console.error('Error saving form config:', error)
+      clientLogger.error('Error saving form config', error instanceof Error ? error : new Error(String(error)))
       showToast(error instanceof Error ? error.message : 'Failed to save form configuration', 'error')
     } finally {
       setSaving(false)
@@ -137,7 +138,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
         throw new Error(data.error || 'Failed to reset')
       }
     } catch (error) {
-      console.error('Error resetting form config:', error)
+      clientLogger.error('Error resetting form config', error instanceof Error ? error : new Error(String(error)))
       showToast(error instanceof Error ? error.message : 'Failed to reset form configuration', 'error')
     } finally {
       setSaving(false)

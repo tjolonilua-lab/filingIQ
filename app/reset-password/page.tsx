@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FilingIQLogo, HolographicPanel } from '@/components'
+import { clientLogger } from '@/lib/logger-client'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -67,7 +68,7 @@ function ResetPasswordForm() {
         setError(data.error || 'Failed to reset password. The link may have expired.')
       }
     } catch (error) {
-      console.error('Reset password error:', error)
+      clientLogger.error('Reset password error', error instanceof Error ? error : new Error(String(error)))
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)

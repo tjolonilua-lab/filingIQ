@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import Toast from '@/components/ui/Toast'
 import FormBuilder from '@/components/forms/FormBuilder'
+import { clientLogger } from '@/lib/logger-client'
 
 interface FormBuilderViewProps {
   accountId: string | null
@@ -45,10 +46,10 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
           slug: acc.slug || '',
         })
       } else {
-        console.warn('Account settings response missing success or account data:', data)
+        clientLogger.warn('Account settings response missing success or account data', { data })
       }
     } catch (error) {
-      console.error('Error loading account settings:', error)
+      clientLogger.error('Error loading account settings', error instanceof Error ? error : new Error(String(error)))
       if (error instanceof Error && !error.message.includes('Failed to fetch')) {
         showToast('Failed to load account settings. Using default values.', 'error')
       }
@@ -91,14 +92,14 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
       const data = await response.json()
       
       if (!data.success) {
-        console.error('Slug check failed:', data.error)
+        clientLogger.error('Slug check failed', new Error(data.error || 'Unknown error'), { data })
         setSlugAvailable(null)
         return
       }
       
       setSlugAvailable(data.available || false)
     } catch (error) {
-      console.error('Error checking slug:', error)
+      clientLogger.error('Error checking slug', error instanceof Error ? error : new Error(String(error)))
       setSlugAvailable(null)
     } finally {
       setCheckingSlug(false)
@@ -149,7 +150,7 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
           return
         }
       } catch (error) {
-        console.error('Error validating slug:', error)
+        clientLogger.error('Error validating slug', error instanceof Error ? error : new Error(String(error)))
         showToast('Could not validate slug. Please try again.', 'error')
         return
       }
@@ -184,7 +185,7 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
       
       showToast('Settings saved successfully!', 'success')
     } catch (error) {
-      console.error('Error saving settings:', error)
+      clientLogger.error('Error saving settings', error instanceof Error ? error : new Error(String(error)))
       showToast(error instanceof Error ? error.message : 'Failed to save settings. Please try again.', 'error')
     } finally {
       setSaving(false)
