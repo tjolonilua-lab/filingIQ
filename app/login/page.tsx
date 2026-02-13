@@ -101,20 +101,24 @@ export default function LoginPage() {
               </div>
             )}
 
+            <div className="flex justify-end mb-2">
+              <a 
+                href="/forgot-password" 
+                className="text-sm text-filingiq-cyan hover:underline"
+              >
+                Forgot password?
+              </a>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-filingiq-cyan hover:bg-filingiq-cyan/80 text-filingiq-dark font-semibold py-3 px-4 rounded-lg transition-colors shadow-glow-cyan mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-filingiq-cyan hover:bg-filingiq-cyan/80 text-filingiq-dark font-semibold py-3 px-4 rounded-lg transition-colors shadow-glow-cyan mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
 
             <p className="text-center text-sm text-gray-400 mt-4">
-              <a href="/forgot-password" className="text-filingiq-cyan hover:underline">
-                Forgot password?
-              </a>
-            </p>
-            <p className="text-center text-sm text-gray-400 mt-2">
               Don't have an account?{' '}
               <a href="/signup" className="text-filingiq-cyan hover:underline">
                 Sign Up
