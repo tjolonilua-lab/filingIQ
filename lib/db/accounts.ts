@@ -164,21 +164,35 @@ export async function isSlugAvailableDB(slug: string, excludeAccountId?: string)
     let result
     if (excludeAccountId) {
       result = await sql`
-        SELECT COUNT(*) as count
+        SELECT COUNT(*)::int as count
         FROM accounts
         WHERE LOWER(slug) = LOWER(${normalizedSlug})
         AND id != ${excludeAccountId}::uuid
       `
     } else {
       result = await sql`
-        SELECT COUNT(*) as count
+        SELECT COUNT(*)::int as count
         FROM accounts
         WHERE LOWER(slug) = LOWER(${normalizedSlug})
       `
     }
     
-    const rows = result as any[]
-    return parseInt(rows[0]?.count || '0') === 0
+    // Neon returns results as an array directly
+    const rows = result as Array<{ count: number | string | bigint }>
+    if (!rows || rows.length === 0) {
+      // If no result, slug is available
+      return true
+    }
+    
+    const count = rows[0]?.count
+    // Handle different count formats (number, string, bigint)
+    const countValue = typeof count === 'bigint' 
+      ? Number(count) 
+      : typeof count === 'string' 
+        ? parseInt(count, 10) 
+        : count || 0
+    
+    return countValue === 0
   } catch (error) {
     logger.error('Error checking slug availability', error as Error, { slug })
     throw error

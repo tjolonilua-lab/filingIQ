@@ -49,8 +49,18 @@ export default function SignupPage() {
     setCheckingSlug(true)
     try {
       const response = await fetch(`/api/account/check-slug?slug=${encodeURIComponent(slug)}`)
+      
+      if (!response.ok) {
+        // If API returns an error, assume slug is available (non-critical check)
+        setSlugAvailable(null)
+        return
+      }
+      
       const data = await response.json()
-      setSlugAvailable(data.available || false)
+      
+      // Extract available from response (could be at top level or in data property)
+      const available = data.available ?? data.data?.available
+      setSlugAvailable(available === true)
     } catch (error) {
       // Error checking slug - non-critical, user can still proceed
       setSlugAvailable(null)
