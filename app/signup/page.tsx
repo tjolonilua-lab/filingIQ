@@ -162,7 +162,7 @@ export default function SignupPage() {
             <div>
               <label htmlFor="slug" className="block text-sm font-medium text-gray-300 mb-2">
                 Intake URL Slug
-                <span className="text-xs text-gray-400 ml-2">(e.g., "flo-financial")</span>
+                <span className="text-xs text-gray-400 ml-2">(e.g., "your-company")</span>
               </label>
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
@@ -178,7 +178,7 @@ export default function SignupPage() {
                     setFormData({ ...formData, slug: value })
                   }}
                   className="w-full pl-[180px] pr-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
-                  placeholder="flo-financial"
+                  placeholder="your-company"
                   pattern="[a-z0-9-]+"
                 />
               </div>
