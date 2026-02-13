@@ -3,7 +3,8 @@
  * Validates required environment variables at startup
  */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Type definition for environment configuration (used for documentation)
+// @ts-expect-error - Interface is used for type documentation
 interface EnvConfig {
   // Required for production
   POSTGRES_URL?: string
