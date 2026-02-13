@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(path)
     }
 
-    // Handle local files
+    // Handle local files (fallback for development only)
+    // On Vercel, files should be in S3, so this will rarely work
     const filePath = join(process.cwd(), path.replace(/^\/uploads\//, 'uploads/'))
     
     try {
@@ -76,7 +77,19 @@ export async function GET(request: NextRequest) {
           'Content-Disposition': `attachment; filename="${filename}"`,
         },
       })
-    } catch (error) {
+    } catch (error: any) {
+      // If file doesn't exist locally, it's likely in S3
+      // Return a helpful error message
+      if (error.code === 'ENOENT') {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'File not found locally. If this is an S3 file, ensure the URL is correct.',
+            hint: 'Files should be accessed via their S3 URLs directly, not through this endpoint.'
+          },
+          { status: 404 }
+        )
+      }
       console.error('File read error:', error)
       return NextResponse.json(
         { success: false, error: 'File not found' },

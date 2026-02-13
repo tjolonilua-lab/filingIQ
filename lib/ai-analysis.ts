@@ -19,12 +19,12 @@ const openai = process.env.OPENAI_API_KEY
   : null
 
 /**
- * Analyzes a tax document using OpenAI Vision API
+ * Analyzes a tax document from base64 buffer using OpenAI Vision API
  */
-export async function analyzeDocument(
-  filePath: string,
+async function analyzeDocumentFromBuffer(
+  base64Image: string,
   filename: string,
-  mimeType: string
+  imageFormat: 'png' | 'jpeg' | 'pdf'
 ): Promise<DocumentAnalysis | null> {
   // Skip if OpenAI is not configured
   if (!openai) {
@@ -33,22 +33,7 @@ export async function analyzeDocument(
   }
 
   try {
-    // Read file and convert to base64
-    let base64Image: string
-    let imageFormat: 'png' | 'jpeg' | 'pdf'
-
-    if (mimeType === 'application/pdf') {
-      // For PDFs, we'll need to handle differently
-      // OpenAI Vision API supports PDFs in some models, but for now we'll convert to image
-      // For simplicity, we'll read as buffer and convert
-      const buffer = await readFile(filePath)
-      base64Image = buffer.toString('base64')
-      imageFormat = 'pdf'
-    } else {
-      const buffer = await readFile(filePath)
-      base64Image = buffer.toString('base64')
-      imageFormat = mimeType.includes('png') ? 'png' : 'jpeg'
-    }
+    const mimeType = imageFormat === 'pdf' ? 'application/pdf' : imageFormat === 'png' ? 'image/png' : 'image/jpeg'
 
     // Prepare the prompt for tax document analysis with strategy focus
     const prompt = `Analyze this tax document and extract key information to identify tax optimization strategies.
@@ -115,6 +100,36 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
     return parseAnalysisResponse(analysisText, filename)
   } catch (error) {
     console.error(`Error analyzing document ${filename}:`, error)
+    return null
+  }
+}
+
+/**
+ * Analyzes a tax document using OpenAI Vision API (from file path)
+ */
+export async function analyzeDocument(
+  filePath: string,
+  filename: string,
+  mimeType: string
+): Promise<DocumentAnalysis | null> {
+  try {
+    // Read file and convert to base64
+    let base64Image: string
+    let imageFormat: 'png' | 'jpeg' | 'pdf'
+
+    if (mimeType === 'application/pdf') {
+      const buffer = await readFile(filePath)
+      base64Image = buffer.toString('base64')
+      imageFormat = 'pdf'
+    } else {
+      const buffer = await readFile(filePath)
+      base64Image = buffer.toString('base64')
+      imageFormat = mimeType.includes('png') ? 'png' : 'jpeg'
+    }
+
+    return await analyzeDocumentFromBuffer(base64Image, filename, imageFormat)
+  } catch (error) {
+    console.error(`Error reading file ${filename}:`, error)
     return null
   }
 }
@@ -195,23 +210,52 @@ export async function analyzeDocuments(
 
   for (const doc of documents) {
     try {
-      // Determine file path
-      let filePath: string
+      let fileBuffer: Buffer
+      let mimeType = doc.type
+      
       if (doc.urlOrPath.startsWith('http')) {
-        // S3 URL - we can't analyze directly, skip for now
-        // In production, you'd download from S3 first
-        results.push({
-          filename: doc.filename,
-          analysis: null,
-          error: 'S3 URLs require download for analysis (not implemented)',
-        })
-        continue
+        // S3 URL or HTTP URL - download the file
+        try {
+          const response = await fetch(doc.urlOrPath)
+          if (!response.ok) {
+            throw new Error(`Failed to download file: ${response.statusText}`)
+          }
+          const arrayBuffer = await response.arrayBuffer()
+          fileBuffer = Buffer.from(arrayBuffer)
+          
+          // Try to get content type from response headers
+          const contentType = response.headers.get('content-type')
+          if (contentType) {
+            mimeType = contentType
+          }
+        } catch (error) {
+          results.push({
+            filename: doc.filename,
+            analysis: null,
+            error: `Failed to download from S3: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          })
+          continue
+        }
       } else {
         // Local file path
-        filePath = join(process.cwd(), doc.urlOrPath.replace(/^\/uploads\//, 'uploads/'))
+        const filePath = join(process.cwd(), doc.urlOrPath.replace(/^\/uploads\//, 'uploads/'))
+        fileBuffer = await readFile(filePath)
       }
 
-      const analysis = await analyzeDocument(filePath, doc.filename, doc.type)
+      // Convert buffer to base64 for OpenAI
+      const base64Image = fileBuffer.toString('base64')
+      let imageFormat: 'png' | 'jpeg' | 'pdf'
+      
+      if (mimeType === 'application/pdf') {
+        imageFormat = 'pdf'
+      } else if (mimeType.includes('png')) {
+        imageFormat = 'png'
+      } else {
+        imageFormat = 'jpeg'
+      }
+
+      // Analyze the document using base64 data
+      const analysis = await analyzeDocumentFromBuffer(base64Image, doc.filename, imageFormat)
       results.push({
         filename: doc.filename,
         analysis,
