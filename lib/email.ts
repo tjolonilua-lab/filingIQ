@@ -154,8 +154,21 @@ export async function sendPasswordResetEmail(
   const branding = getBusinessBranding()
   const fromEmail = process.env.RESEND_FROM_EMAIL || `noreply@${branding.businessWebsite}`
   
-  // Build site URL - handle VERCEL_URL format (might not include https://)
-  let siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
+  // Build site URL - prefer production domain over preview URLs
+  // Priority: NEXT_PUBLIC_SITE_URL > production VERCEL_URL > localhost
+  let siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  
+  // Only use VERCEL_URL if it's production (not a preview deployment)
+  if (!siteUrl && process.env.VERCEL_ENV === 'production' && process.env.VERCEL_URL) {
+    siteUrl = process.env.VERCEL_URL
+  }
+  
+  // Fallback to localhost for development
+  if (!siteUrl) {
+    siteUrl = 'http://localhost:3000'
+  }
+  
+  // Ensure URL has protocol
   if (siteUrl && !siteUrl.startsWith('http')) {
     siteUrl = `https://${siteUrl}`
   }
