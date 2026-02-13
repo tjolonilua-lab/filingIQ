@@ -56,8 +56,18 @@ export async function loadAccounts(): Promise<CompanyAccount[]> {
 
 // Save accounts
 async function saveAccounts(accounts: CompanyAccount[]): Promise<void> {
-  await ensureAccountsDir()
-  await fs.writeFile(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2), 'utf-8')
+  try {
+    await ensureAccountsDir()
+    await fs.writeFile(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2), 'utf-8')
+  } catch (error: any) {
+    // On Vercel, filesystem is read-only. This will fail in production.
+    // In production, you should use a database (e.g., PostgreSQL, MongoDB) or Vercel KV
+    console.error('Failed to save accounts file:', error)
+    if (error.code === 'EPERM' || error.code === 'EROFS') {
+      throw new Error('File system is read-only. Please configure a database for production deployments.')
+    }
+    throw error
+  }
 }
 
 // Generate a default slug from company name

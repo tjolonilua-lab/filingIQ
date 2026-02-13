@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       email: validated.email,
       password: validated.password,
       website: validated.website,
+      slug: validated.slug, // Pass the slug if provided
     })
 
     // Return account (without password hash)
@@ -52,8 +53,19 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('Signup error:', error)
+    
+    // Provide more specific error message
+    let errorMessage = 'Failed to create account'
+    if (error instanceof Error) {
+      if (error.message.includes('read-only') || error.message.includes('EPERM') || error.message.includes('EROFS')) {
+        errorMessage = 'File system is read-only. Please configure a database for production deployments.'
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to create account' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }
