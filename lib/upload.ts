@@ -53,7 +53,20 @@ export async function storeUpload(
       await s3Client.send(command)
       console.log('S3 upload successful:', filename)
 
-      const url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/intakes/${filename}`
+      // Generate S3 URL - us-east-1 uses different format (no region in URL)
+      const region = process.env.AWS_REGION || 'us-east-1'
+      const bucket = process.env.AWS_S3_BUCKET
+      const key = `intakes/${filename}`
+      
+      let url: string
+      if (region === 'us-east-1') {
+        // us-east-1 uses bucket.s3.amazonaws.com format
+        url = `https://${bucket}.s3.amazonaws.com/${key}`
+      } else {
+        // Other regions use bucket.s3.region.amazonaws.com format
+        url = `https://${bucket}.s3.${region}.amazonaws.com/${key}`
+      }
+      
       return { urlOrPath: url }
     } catch (error: any) {
       console.error('S3 upload failed:', error)

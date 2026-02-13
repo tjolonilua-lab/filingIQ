@@ -32,8 +32,16 @@ export async function GET(request: NextRequest) {
       if (s3Client && (path.includes('s3') || path.includes('amazonaws.com'))) {
         try {
           // Extract bucket and key from URL
+          // Handles both formats:
+          // - bucket.s3.amazonaws.com/key (us-east-1)
+          // - bucket.s3.region.amazonaws.com/key (other regions)
           const url = new URL(path)
-          const bucket = url.hostname.split('.')[0]
+          const hostnameParts = url.hostname.split('.')
+          
+          // Bucket is always the first part
+          const bucket = hostnameParts[0]
+          
+          // Key is the pathname without leading slash
           const key = url.pathname.substring(1)
 
           const command = new GetObjectCommand({
@@ -44,8 +52,8 @@ export async function GET(request: NextRequest) {
           const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
           return NextResponse.redirect(signedUrl)
         } catch (error) {
-          console.error('S3 error:', error)
-          // Fall through to direct redirect
+          console.error('S3 signed URL generation error:', error)
+          // Fall through to direct redirect (may fail if bucket is private)
         }
       }
       
