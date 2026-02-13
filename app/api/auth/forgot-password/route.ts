@@ -3,15 +3,10 @@ import { findAccountByEmail } from '@/lib/accounts'
 import { createPasswordResetTokenDB } from '@/lib/db'
 import { z } from 'zod'
 
-// Import password reset email function
-async function sendPasswordResetEmail(
-  email: string,
-  companyName: string,
-  token: string
-): Promise<void> {
-  // Dynamic import to avoid Turbopack issues
-  const { sendPasswordResetEmail: sendEmail } = await import('@/lib/email')
-  return sendEmail(email, companyName, token)
+// Dynamic import to work around Turbopack module resolution issue
+const getSendPasswordResetEmail = async () => {
+  const emailModule = await import('@/lib/email')
+  return emailModule.sendPasswordResetEmail
 }
 
 const forgotPasswordSchema = z.object({
@@ -36,6 +31,7 @@ export async function POST(request: NextRequest) {
         const token = await createPasswordResetTokenDB(account.id)
         
         // Send reset email
+        const sendPasswordResetEmail = await getSendPasswordResetEmail()
         await sendPasswordResetEmail(account.email, account.companyName, token)
         
         console.log(`Password reset token created for account: ${account.id}`)
