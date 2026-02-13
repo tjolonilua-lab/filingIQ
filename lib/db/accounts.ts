@@ -307,6 +307,35 @@ export async function updateAccountDB(
   }
 }
 
+// Update password hash
+export async function updatePasswordDB(accountId: string, passwordHash: string): Promise<void> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    await sql`UPDATE accounts SET password_hash = ${passwordHash} WHERE id = ${accountId}::uuid`
+  } catch (error) {
+    logger.error('Error updating password', error as Error, { accountId })
+    throw error
+  }
+}
+
+// Update password by email
+export async function updatePasswordByEmailDB(email: string, passwordHash: string): Promise<boolean> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    const result = await sql`UPDATE accounts SET password_hash = ${passwordHash} WHERE email = ${email} RETURNING id`
+    return (result as unknown[]).length > 0
+  } catch (error) {
+    logger.error('Error updating password by email', error as Error, { email })
+    throw error
+  }
+}
+
 // Update account settings
 export async function updateAccountSettingsDB(
   accountId: string,
@@ -354,6 +383,51 @@ export async function updateAccountSettingsDB(
     return updatedAccount
   } catch (error) {
     logger.error('Error updating account settings', error as Error, { accountId })
+    throw error
+  }
+}
+
+// Delete account by ID
+export async function deleteAccountDB(accountId: string): Promise<void> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    // CASCADE will automatically delete related records (submissions, password_reset_tokens)
+    await sql`DELETE FROM accounts WHERE id = ${accountId}::uuid`
+  } catch (error) {
+    logger.error('Error deleting account', error as Error, { accountId })
+    throw error
+  }
+}
+
+// Delete account by email
+export async function deleteAccountByEmailDB(email: string): Promise<boolean> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    const result = await sql`DELETE FROM accounts WHERE email = ${email} RETURNING id`
+    return (result as unknown[]).length > 0
+  } catch (error) {
+    logger.error('Error deleting account by email', error as Error, { email })
+    throw error
+  }
+}
+
+// Delete all accounts (use with caution!)
+export async function deleteAllAccountsDB(): Promise<number> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    const result = await sql`DELETE FROM accounts RETURNING id`
+    return (result as unknown[]).length
+  } catch (error) {
+    logger.error('Error deleting all accounts', error as Error)
     throw error
   }
 }

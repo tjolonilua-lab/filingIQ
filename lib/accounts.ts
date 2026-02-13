@@ -13,6 +13,9 @@ import {
   createAccountDB,
   updateAccountDB,
   updateAccountSettingsDB,
+  deleteAccountDB,
+  deleteAccountByEmailDB,
+  deleteAllAccountsDB,
 } from './db'
 import type { CompanyAccount } from './types/account'
 
@@ -515,3 +518,143 @@ export async function getFormConfig(accountId: string): Promise<FormConfiguratio
   return account.settings?.formConfig || defaultFormConfig
 }
 
+/**
+ * Delete account by ID
+ * 
+ * Deletes an account and all related data (submissions, password reset tokens).
+ * Uses database if available, falls back to filesystem for local development.
+ * 
+ * @param accountId - The account ID to delete
+ * @throws {Error} If account is not found
+ * 
+ * @example
+ * ```typescript
+ * await deleteAccount(accountId)
+ * ```
+ */
+export async function deleteAccount(accountId: string): Promise<void> {
+  // Try database first
+  if (await isDatabaseAvailable()) {
+    try {
+      return await deleteAccountDB(accountId)
+    } catch (error) {
+      logger.error('Error deleting account in database, falling back to file system', error as Error)
+    }
+  }
+  
+  // Fallback to file system
+  const accounts = await loadAccounts()
+  const accountIndex = accounts.findIndex(acc => acc.id === accountId)
+  
+  if (accountIndex === -1) {
+    throw new Error('Account not found')
+  }
+  
+  accounts.splice(accountIndex, 1)
+  await saveAccounts(accounts)
+}
+
+/**
+ * Delete account by email
+ * 
+ * Deletes an account by email address. Useful for clearing test accounts.
+ * 
+ * @param email - The email address of the account to delete
+ * @returns True if account was found and deleted, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * const deleted = await deleteAccountByEmail('test@example.com')
+ * ```
+ */
+export async function deleteAccountByEmail(email: string): Promise<boolean> {
+  // Try database first
+  if (await isDatabaseAvailable()) {
+    try {
+      return await deleteAccountByEmailDB(email)
+    } catch (error) {
+      logger.error('Error deleting account by email in database, falling back to file system', error as Error)
+    }
+  }
+  
+  // Fallback to file system
+  const accounts = await loadAccounts()
+  const accountIndex = accounts.findIndex(acc => acc.email === email)
+  
+  if (accountIndex === -1) {
+    return false
+  }
+  
+  accounts.splice(accountIndex, 1)
+  await saveAccounts(accounts)
+  return true
+}
+
+/**
+ * Delete all accounts (use with caution!)
+ * 
+ * Deletes all accounts from the system. This is a destructive operation
+ * and should only be used for development/testing purposes.
+ * 
+ * @returns The number of accounts deleted
+ * 
+ * @example
+ * ```typescript
+ * const count = await deleteAllAccounts()
+ * console.log(`Deleted ${count} accounts`)
+ * ```
+ */
+export async function deleteAllAccounts(): Promise<number> {
+  // Try database first
+  if (await isDatabaseAvailable()) {
+    try {
+      return await deleteAllAccountsDB()
+    } catch (error) {
+      logger.error('Error deleting all accounts in database, falling back to file system', error as Error)
+    }
+  }
+  
+  // Fallback to file system
+  await ensureAccountsDir()
+  await fs.writeFile(ACCOUNTS_FILE, '[]', 'utf-8')
+  return 0 // Can't know count from file system without reading first
+}
+
+/**
+ * Reset password for an account
+ * 
+ * Resets the password for an account by email. Useful for development/testing.
+ * 
+ * @param email - The email address of the account
+ * @param newPassword - The new plain text password (will be hashed)
+ * @returns True if account was found and password was reset, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * const reset = await resetPassword('user@example.com', 'newpassword123')
+ * ```
+ */
+export async function resetPassword(email: string, newPassword: string): Promise<boolean> {
+  const passwordHash = await hashPassword(newPassword)
+  
+  // Try database first
+  if (await isDatabaseAvailable()) {
+    try {
+      return await updatePasswordByEmailDB(email, passwordHash)
+    } catch (error) {
+      logger.error('Error resetting password in database, falling back to file system', error as Error)
+    }
+  }
+  
+  // Fallback to file system
+  const accounts = await loadAccounts()
+  const accountIndex = accounts.findIndex(acc => acc.email === email)
+  
+  if (accountIndex === -1) {
+    return false
+  }
+  
+  accounts[accountIndex].passwordHash = passwordHash
+  await saveAccounts(accounts)
+  return true
+}
