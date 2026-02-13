@@ -176,8 +176,13 @@ export async function sendPasswordResetEmail(
   // Remove trailing slash from siteUrl if present
   siteUrl = siteUrl.replace(/\/$/, '')
   
+  // If VERCEL_SHARE_TOKEN is set, add it to bypass password protection
+  // This allows password reset links to work even if deployment is password-protected
+  const shareToken = process.env.VERCEL_SHARE_TOKEN
+  const shareParam = shareToken ? `&_vercel_share=${shareToken}` : ''
+  
   // Properly encode the token in the URL
-  const resetUrl = `${siteUrl}/reset-password?token=${encodeURIComponent(token)}`
+  const resetUrl = `${siteUrl}/reset-password?token=${encodeURIComponent(token)}${shareParam}`
 
   const emailContent = formatPasswordResetEmailContent(companyName, resetUrl)
 
