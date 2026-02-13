@@ -14,21 +14,24 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
  * @param intake - The intake submission data
  * @param fileLinks - Array of file URLs/paths to include in email
  * @param analysisSummary - Optional AI analysis summary to include
+ * @param accountEmail - Optional account owner email (if provided, sends to account owner)
  * @returns Promise that resolves when email is sent or logged
  * 
  * @example
  * ```typescript
- * await sendIntakeEmail(intake, fileLinks, analysisSummary)
+ * await sendIntakeEmail(intake, fileLinks, analysisSummary, accountEmail)
  * ```
  */
 export async function sendIntakeEmail(
   intake: IntakeSubmission,
   fileLinks: string[],
-  analysisSummary?: string | null
+  analysisSummary?: string | null,
+  accountEmail?: string
 ): Promise<void> {
   const branding = getBusinessBranding()
   const fromEmail = process.env.RESEND_FROM_EMAIL || `noreply@${branding.businessWebsite}`
-  const toEmail = process.env.RESEND_TO_EMAIL || branding.businessEmail
+  // Send to account owner's email if provided, otherwise fallback to RESEND_TO_EMAIL or BUSINESS_EMAIL
+  const toEmail = accountEmail || process.env.RESEND_TO_EMAIL || branding.businessEmail
 
   const emailContent = formatEmailContent(intake, fileLinks, analysisSummary)
 

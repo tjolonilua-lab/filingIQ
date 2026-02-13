@@ -11,6 +11,7 @@ import { handleApiError, validationError, serverError, okResponse } from '@/lib/
 import { logger } from '@/lib/logger'
 import { getAccountIdFromRequest } from '@/lib/api/auth'
 import { withCorrelationId } from '@/lib/middleware/correlation'
+import { findAccountById } from '@/lib/accounts'
 import type { AnalysisResult, DocumentWithAnalysis } from '@/lib/types/submission'
 
 export const POST = withCorrelationId(async (request: NextRequest, correlationId: string) => {
@@ -148,14 +149,21 @@ export const POST = withCorrelationId(async (request: NextRequest, correlationId
       // Continue even if save fails - email can still be sent
     }
 
-    // Send email notification
+    // Send email notification to account owner
     try {
+      // Get account email for notifications
+      let accountEmail: string | undefined
+      if (accountId) {
+        const account = await findAccountById(accountId)
+        accountEmail = account?.email
+      }
+      
       const fileLinks = uploadedDocuments.map((doc) => doc.urlOrPath)
       const analysisSummary = documentAnalyses.length > 0 
         ? generateAnalysisSummary(documentAnalyses)
         : null
-      await sendIntakeEmail(intake, fileLinks, analysisSummary)
-      logger.info('Intake email sent successfully')
+      await sendIntakeEmail(intake, fileLinks, analysisSummary, accountEmail)
+      logger.info('Intake email sent successfully', { to: accountEmail })
     } catch (error) {
       logger.error('Failed to send email', error as Error)
       // Continue even if email fails

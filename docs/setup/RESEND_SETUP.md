@@ -169,7 +169,8 @@ For most tax intake services, the free tier is sufficient to start.
 ## What Emails Are Sent?
 
 1. **Intake Submission Notifications**
-   - Sent to `RESEND_TO_EMAIL` when a client submits intake form
+   - Sent to the **account owner's email** (the user who created the account)
+   - Falls back to `RESEND_TO_EMAIL` or `BUSINESS_EMAIL` if account email not available
    - Includes client contact info, filing details, and uploaded documents
 
 2. **Password Reset Emails**

@@ -66,7 +66,8 @@ This checklist ensures your FilingIQ application is fully configured and ready f
 ### Email Notifications (Recommended)
 - [ ] `RESEND_API_KEY` - Resend API key
 - [ ] `RESEND_FROM_EMAIL` - Sender email (must be verified)
-- [ ] `RESEND_TO_EMAIL` - Recipient email
+- [ ] `ADMIN_EMAIL` - Admin email for intake notifications (recommended)
+- [ ] `RESEND_TO_EMAIL` - Alternative recipient email (optional, falls back to ADMIN_EMAIL or BUSINESS_EMAIL)
   - **Setup Guide:** See `docs/setup/RESEND_SETUP.md`
 
 ### AI Analysis (Optional)
