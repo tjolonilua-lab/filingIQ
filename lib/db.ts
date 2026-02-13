@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import crypto from 'crypto'
 
 // Initialize Neon client
 // Uses POSTGRES_URL environment variable (automatically set by Vercel when using Neon)
@@ -60,6 +61,29 @@ export async function initDatabase() {
     `
     await sql`
       CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at DESC)
+    `
+    
+    // Create password reset tokens table
+    await sql`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
+    
+    // Create indexes for password reset tokens
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token)
+    `
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_reset_tokens_account_id ON password_reset_tokens(account_id)
+    `
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_reset_tokens_expires_at ON password_reset_tokens(expires_at)
     `
     
     console.log('Database initialized successfully')
@@ -563,6 +587,90 @@ export async function getSubmissionsByAccountDB(accountId: string): Promise<Arra
     })) as Array<IntakeSubmission & { id: string; accountId?: string }>
   } catch (error) {
     console.error('Error fetching submissions:', error)
+    throw error
+  }
+}
+
+// Password reset token functions
+export async function createPasswordResetTokenDB(accountId: string): Promise<string> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    // Generate secure random token
+    const token = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
+    
+    await sql`
+      INSERT INTO password_reset_tokens (account_id, token, expires_at)
+      VALUES (${accountId}::uuid, ${token}, ${expiresAt}::timestamp)
+    `
+    
+    return token
+  } catch (error) {
+    console.error('Error creating password reset token:', error)
+    throw error
+  }
+}
+
+export async function validatePasswordResetTokenDB(token: string): Promise<{ accountId: string } | null> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    const result = await sql`
+      SELECT account_id::text as "accountId"
+      FROM password_reset_tokens
+      WHERE token = ${token}
+        AND expires_at > NOW()
+        AND used = FALSE
+      LIMIT 1
+    `
+    
+    const rows = result as any[]
+    if (rows.length === 0) {
+      return null
+    }
+    
+    return { accountId: rows[0].accountId }
+  } catch (error) {
+    console.error('Error validating password reset token:', error)
+    throw error
+  }
+}
+
+export async function markPasswordResetTokenUsedDB(token: string): Promise<void> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    await sql`
+      UPDATE password_reset_tokens
+      SET used = TRUE
+      WHERE token = ${token}
+    `
+  } catch (error) {
+    console.error('Error marking password reset token as used:', error)
+    throw error
+  }
+}
+
+export async function updateAccountPasswordDB(accountId: string, passwordHash: string): Promise<void> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    await sql`
+      UPDATE accounts
+      SET password_hash = ${passwordHash}
+      WHERE id = ${accountId}::uuid
+    `
+  } catch (error) {
+    console.error('Error updating account password:', error)
     throw error
   }
 }
