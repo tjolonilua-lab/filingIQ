@@ -14,8 +14,6 @@
  * ```
  */
 
-import { captureException, captureMessage, addBreadcrumb, isSentryEnabled } from './monitoring/sentry'
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 interface LogEntry {
@@ -55,11 +53,6 @@ class Logger {
 
     const formatted = this.formatMessage(entry)
 
-    // Add breadcrumb for Sentry
-    if (isSentryEnabled()) {
-      addBreadcrumb(message, level, { ...context, error: error?.message })
-    }
-
     // Log to console with structured format
     switch (level) {
       case 'debug':
@@ -70,19 +63,9 @@ class Logger {
         break
       case 'warn':
         console.warn(formatted)
-        // Send warnings to Sentry
-        if (isSentryEnabled()) {
-          captureMessage(message, 'warning', context)
-        }
         break
       case 'error':
         console.error(formatted, error?.stack || '')
-        // Send errors to Sentry
-        if (isSentryEnabled() && error) {
-          captureException(error, context)
-        } else if (isSentryEnabled()) {
-          captureMessage(message, 'error', context)
-        }
         break
     }
   }

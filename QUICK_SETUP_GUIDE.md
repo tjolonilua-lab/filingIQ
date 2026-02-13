@@ -35,18 +35,38 @@ Vercel → Deployments → Redeploy
 3. Go to **API Keys** → **Create API Key**
 4. Copy the key (starts with `re_`)
 
-### 2. Add to Vercel
+### 2. Verify Domain (REQUIRED)
+**IMPORTANT:** Before sending emails, you must verify a domain in Resend:
+
+**Option A: Verify `onboarding.resend.dev` (Quick Testing)**
+1. Go to [resend.com/domains](https://resend.com/domains)
+2. Click **"Add Domain"** and enter `onboarding.resend.dev`
+3. **Note:** Resend may require DNS verification even for their test domain
+4. If you see DNS records to add:
+   - Try clicking **"Auto configure"** (orange button) - this may work for some accounts
+   - If you get Cloudflare authorization errors, you cannot manually configure DNS for `onboarding.resend.dev` (it's Resend's domain)
+   - **Solution:** Use Option B (your own domain) instead, or contact Resend support
+5. Wait for verification status to show "Verified" ✅
+6. **Alternative:** If `onboarding.resend.dev` verification fails, use your own domain (Option B) - it's better for production anyway
+
+**Option B: Use Your Own Domain (Recommended for Production)**
+1. Go to [resend.com/domains](https://resend.com/domains)
+2. Click **"Add Domain"** → Enter your domain (e.g., `yourdomain.com`)
+3. Add the DNS records Resend provides to your domain's DNS settings
+4. Wait for verification (usually 5-15 minutes)
+
+### 3. Add to Vercel
 Go to Vercel → Settings → Environment Variables, add:
 
 ```
 RESEND_API_KEY = re_... (your key)
-RESEND_FROM_EMAIL = noreply@yourdomain.com
+RESEND_FROM_EMAIL = noreply@yourdomain.com  (or noreply@onboarding.resend.dev for testing)
 RESEND_TO_EMAIL = info@yourdomain.com
 ```
 
-**Note:** For quick testing, use `noreply@onboarding.resend.dev` as FROM email.
+**⚠️ Important:** The domain in `RESEND_FROM_EMAIL` MUST be verified in Resend, or you'll get a 403 error!
 
-### 3. Redeploy
+### 4. Redeploy
 Vercel → Deployments → Redeploy
 
 **Full Guide:** `docs/setup/RESEND_SETUP.md`

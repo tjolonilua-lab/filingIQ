@@ -47,9 +47,15 @@ This guide walks you through setting up Resend for email notifications (intake s
 ### Option B: Use Resend's Test Domain (Quick Start)
 
 1. Resend provides a test domain: `onboarding.resend.dev`
-2. You can use emails like `noreply@onboarding.resend.dev`
-3. **Note:** This is for testing only - emails may go to spam
-4. For production, verify your own domain
+2. **IMPORTANT:** You must verify this domain first:
+   - Go to **Domains** in Resend dashboard
+   - Find `onboarding.resend.dev` (may already be listed)
+   - If not verified, click to verify it (usually automatic)
+   - Wait for status to show "Verified" ✅
+3. Once verified, you can use emails like `noreply@onboarding.resend.dev`
+4. **Note:** This is for testing only - emails may go to spam
+5. For production, verify your own domain
+6. **⚠️ Error Fix:** If you get a 403 "domain not verified" error, you must verify the domain in Resend before using it!
 
 ---
 
@@ -146,13 +152,25 @@ After adding environment variables, you must redeploy:
 3. Ensure you copied the full key (starts with `re_`)
 4. Create a new API key if needed
 
-### Issue: "Domain not verified"
+### Issue: "Domain not verified" (403 Error)
+
+**Error Message:** `The onboarding.resend.dev domain is not verified. Please, add and verify your domain on https://resend.com/domains`
 
 **Solutions:**
-1. Check DNS records are added correctly
-2. Wait 15-30 minutes for DNS propagation
-3. Use Resend's DNS checker tool
-4. For quick testing, use `onboarding.resend.dev` domain
+1. **For `onboarding.resend.dev`:**
+   - Go to [resend.com/domains](https://resend.com/domains)
+   - Find `onboarding.resend.dev` in your domains list
+   - Click to verify it (verification is usually automatic)
+   - Wait for status to show "Verified" ✅
+   - Then retry sending the email
+
+2. **For custom domains:**
+   - Check DNS records are added correctly
+   - Wait 15-30 minutes for DNS propagation
+   - Use Resend's DNS checker tool
+   - Verify the domain shows as "Verified" in Resend dashboard
+
+3. **Quick fix:** If using `onboarding.resend.dev`, make sure it's verified in your Resend account before using it
 
 ---
 
