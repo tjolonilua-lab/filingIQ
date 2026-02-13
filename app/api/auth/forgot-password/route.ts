@@ -55,16 +55,11 @@ const forgotPasswordHandler = async (request: NextRequest) => {
   }
 }
 
-// Apply rate limiting (3 attempts per hour per email)
+// Apply rate limiting (3 attempts per hour per IP)
+// Note: We intentionally DON'T read the body here to avoid
+// \"Body is unusable: Body has already been read\" errors.
+// Rate limiting by IP is sufficient for this endpoint.
 export const POST = withRateLimit(
   forgotPasswordHandler,
-  RATE_LIMITS.PASSWORD_RESET,
-  async (req) => {
-    try {
-      const body = await req.json()
-      return body?.email // Rate limit by email
-    } catch {
-      return undefined
-    }
-  }
+  RATE_LIMITS.PASSWORD_RESET
 )
