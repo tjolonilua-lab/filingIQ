@@ -60,16 +60,23 @@ export async function storeUpload(
   }
 
   // Fallback to local storage
+  // Note: On Vercel, local storage won't persist. S3 should be configured for production.
   const uploadsDir = join(process.cwd(), 'uploads')
   try {
     await mkdir(uploadsDir, { recursive: true })
   } catch (error) {
-    // Directory might already exist
+    // Directory might already exist or filesystem is read-only (Vercel)
+    console.warn('Could not create uploads directory:', error)
   }
 
-  const filePath = join(uploadsDir, filename)
-  await writeFile(filePath, buffer)
-
-  return { urlOrPath: `/uploads/${filename}` }
+  try {
+    const filePath = join(uploadsDir, filename)
+    await writeFile(filePath, buffer)
+    return { urlOrPath: `/uploads/${filename}` }
+  } catch (error) {
+    // If local storage fails (e.g., on Vercel), throw error to indicate S3 is required
+    console.error('Local file storage failed. S3 must be configured for production:', error)
+    throw new Error('File storage failed. Please configure AWS S3 for production deployments.')
+  }
 }
 
