@@ -73,6 +73,7 @@ This checklist ensures your FilingIQ application is fully configured and ready f
 - [ ] `ENABLE_AI_ANALYSIS` - Set to `true` to enable AI features
 - [ ] `OPENAI_API_KEY` - OpenAI API key (required if AI enabled)
 - [ ] `OPENAI_MODEL` - Model name (default: `gpt-4o`)
+  - **Setup Guide:** See `docs/setup/OPENAI_SETUP.md`
 
 ### Error Monitoring (Optional)
 - [ ] `SENTRY_DSN` - Sentry DSN for error tracking
