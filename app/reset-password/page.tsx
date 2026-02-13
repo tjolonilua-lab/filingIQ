@@ -21,8 +21,12 @@ function ResetPasswordForm() {
     const tokenParam = searchParams.get('token')
     if (tokenParam) {
       setToken(tokenParam)
+      // Clear any previous errors when token is found
+      setError('')
     } else {
-      setError('Invalid reset link. Please request a new password reset.')
+      // Check if we're on the reset-password page but no token
+      // This means the link was invalid or token was lost
+      setError('Invalid or missing reset token. Please request a new password reset link.')
     }
   }, [searchParams])
 
@@ -65,7 +69,14 @@ function ResetPasswordForm() {
           router.push('/login')
         }, 3000)
       } else {
-        setError(data.error || 'Failed to reset password. The link may have expired.')
+        // If token is invalid/expired, show helpful error
+        const errorMsg = data.error || 'Failed to reset password. The link may have expired or already been used.'
+        setError(errorMsg)
+        
+        // If token is invalid, suggest requesting a new one
+        if (errorMsg.includes('Invalid') || errorMsg.includes('expired')) {
+          // Don't redirect, just show error with link to request new one
+        }
       }
     } catch (error) {
       clientLogger.error('Reset password error', error instanceof Error ? error : new Error(String(error)))
@@ -154,8 +165,16 @@ function ResetPasswordForm() {
               </div>
 
               {error && (
-                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-sm text-red-400">
-                  {error}
+                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-sm text-red-400 space-y-2">
+                  <p>{error}</p>
+                  {error.includes('Invalid') || error.includes('missing') || error.includes('expired') ? (
+                    <a 
+                      href="/forgot-password" 
+                      className="text-filingiq-cyan hover:underline block mt-2"
+                    >
+                      Request a new password reset link →
+                    </a>
+                  ) : null}
                 </div>
               )}
 

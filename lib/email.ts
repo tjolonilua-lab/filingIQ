@@ -173,7 +173,11 @@ export async function sendPasswordResetEmail(
     siteUrl = `https://${siteUrl}`
   }
   
-  const resetUrl = `${siteUrl}/reset-password?token=${token}`
+  // Remove trailing slash from siteUrl if present
+  siteUrl = siteUrl.replace(/\/$/, '')
+  
+  // Properly encode the token in the URL
+  const resetUrl = `${siteUrl}/reset-password?token=${encodeURIComponent(token)}`
 
   const emailContent = formatPasswordResetEmailContent(companyName, resetUrl)
 
