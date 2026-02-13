@@ -1,4 +1,3 @@
-// Injected content via Sentry wizard
 const { withSentryConfig } = require('@sentry/nextjs')
 
 /** @type {import('next').NextConfig} */
@@ -50,42 +49,17 @@ const nextConfig = {
   },
 }
 
-// Only wrap with Sentry if SENTRY_DSN is configured
+// Sentry configuration options
 const sentryOptions = {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
 
-  // Suppresses source map uploading logs during build
-  silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-}
+  // Use environment variables or fallback to wizard values
+  org: process.env.SENTRY_ORG || "prolific-labs",
+  project: process.env.SENTRY_PROJECT || "javascript-nextjs",
 
-// Only enable Sentry if DSN is configured
-const shouldUseSentry = process.env.SENTRY_DSN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
-
-module.exports = shouldUseSentry
-  ? withSentryConfig(nextConfig, sentryOptions)
-  : nextConfig
-
-
-
-// Injected content via Sentry wizard below
-
-const { withSentryConfig } = require("@sentry/nextjs");
-
-module.exports = withSentryConfig(module.exports, {
-  // For all available options, see:
-  // https://www.npmjs.com/package/@sentry/webpack-plugin#options
-
-  org: "prolific-labs",
-  project: "javascript-nextjs",
-
-  // Only print logs for uploading source maps in CI
+  // Suppresses source map uploading logs during build (unless in CI)
   silent: !process.env.CI,
-
-  // For all available options, see:
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
@@ -109,4 +83,11 @@ module.exports = withSentryConfig(module.exports, {
       removeDebugLogging: true,
     },
   },
-});
+}
+
+// Only wrap with Sentry if DSN is configured
+const shouldUseSentry = process.env.SENTRY_DSN && (process.env.SENTRY_ORG || sentryOptions.org) && (process.env.SENTRY_PROJECT || sentryOptions.project)
+
+module.exports = shouldUseSentry
+  ? withSentryConfig(nextConfig, sentryOptions)
+  : nextConfig
