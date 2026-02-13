@@ -13,12 +13,10 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<(IntakeSubmission & { id: string }) | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [accountId, setAccountId] = useState<string | null>(null)
 
   useEffect(() => {
     const storedAccountId = localStorage.getItem('account_id')
     if (storedAccountId) {
-      setAccountId(storedAccountId)
       fetchClient(clientId, storedAccountId)
     } else {
       router.push('/login')
