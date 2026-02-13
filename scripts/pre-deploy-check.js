@@ -49,21 +49,30 @@ if (!tscResult.success) {
   errors++
   log('✗ TypeScript compilation failed', RED)
   
-  // Extract critical errors (exclude unused variable warnings)
+  // Extract critical errors
+  // Note: TS6196 (unused interfaces) and TS6192 (unused imports) are treated as errors by Next.js build
+  // Only TS6133 (unused variables) can be safely ignored if prefixed with _
   const criticalErrors = tscResult.output
     .split('\n')
-    .filter(line => /error TS[0-9]/.test(line) && !/TS6133|TS6196|TS6192/.test(line))
+    .filter(line => {
+      if (!/error TS[0-9]/.test(line)) return false
+      // Allow TS6133 only if variable is prefixed with _ (intentionally unused)
+      if (/TS6133/.test(line) && /'_[^']+'/.test(line)) return false
+      // All other errors are critical, including TS6196 and TS6192
+      return true
+    })
   
   if (criticalErrors.length > 0) {
     log('\nCritical errors found:', RED)
     criticalErrors.slice(0, 20).forEach(err => console.log(err))
   }
   
-  // Count warnings
-  const warningCount = countMatches(tscResult.output, /TS6133|TS6196|TS6192/)
-  if (warningCount > 0) {
-    warnings += warningCount
-    log(`\n⚠ Warnings (non-blocking): ${warningCount} unused variables/imports`, YELLOW)
+  // Count warnings (only intentionally unused variables with _ prefix)
+  const intentionallyUnused = (tscResult.output.match(/TS6133.*'_[^']+'/g) || []).length
+  const otherWarnings = countMatches(tscResult.output, /TS6133|TS6196|TS6192/) - intentionallyUnused
+  if (otherWarnings > 0) {
+    warnings += otherWarnings
+    log(`\n⚠ Warnings: ${otherWarnings} unused variables/interfaces/imports (should be fixed)`, YELLOW)
   }
 } else {
   log('✓ TypeScript compilation passed', GREEN)
