@@ -153,7 +153,13 @@ export async function sendPasswordResetEmail(
 ): Promise<void> {
   const branding = getBusinessBranding()
   const fromEmail = process.env.RESEND_FROM_EMAIL || `noreply@${branding.businessWebsite}`
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
+  
+  // Build site URL - handle VERCEL_URL format (might not include https://)
+  let siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
+  if (siteUrl && !siteUrl.startsWith('http')) {
+    siteUrl = `https://${siteUrl}`
+  }
+  
   const resetUrl = `${siteUrl}/reset-password?token=${token}`
 
   const emailContent = formatPasswordResetEmailContent(companyName, resetUrl)
@@ -161,17 +167,34 @@ export async function sendPasswordResetEmail(
   // Try Resend if configured
   if (resend) {
     try {
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: fromEmail,
         to: email,
         subject: 'Reset Your FilingIQ Password',
         html: emailContent,
       })
-      logger.info('Password reset email sent via Resend', { to: email, from: fromEmail })
+      logger.info('Password reset email sent via Resend', { 
+        to: email, 
+        from: fromEmail,
+        messageId: result.data?.id || 'unknown',
+        resetUrl 
+      })
       return
     } catch (error) {
-      logger.error('Resend email failed', error as Error, { to: email })
-      // Fall through to logger
+      // Log detailed error information
+      const errorDetails = error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error
+      logger.error('Resend email failed', error as Error, { 
+        to: email, 
+        from: fromEmail,
+        errorDetails,
+        resetUrl
+      })
+      // Re-throw so caller knows it failed
+      throw error
     }
   }
 

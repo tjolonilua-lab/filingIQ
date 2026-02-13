@@ -38,11 +38,31 @@ const forgotPasswordHandler = async (request: NextRequest) => {
         const sendPasswordResetEmail = await getSendPasswordResetEmail()
         await sendPasswordResetEmail(account.email, account.companyName, token)
         
-        logger.info('Password reset token created', { accountId: account.id })
+        logger.info('Password reset email sent successfully', { 
+          accountId: account.id,
+          email: account.email,
+          hasResendKey: !!process.env.RESEND_API_KEY,
+          fromEmail: process.env.RESEND_FROM_EMAIL || 'not-set'
+        })
       } catch (error) {
-        // Log error but don't reveal it to user
-        logger.error('Error creating password reset token', error as Error, { accountId: account.id })
+        // Log detailed error but don't reveal it to user
+        const errorDetails = error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        } : error
+        logger.error('Error sending password reset email', error as Error, { 
+          accountId: account.id,
+          email: account.email,
+          hasResendKey: !!process.env.RESEND_API_KEY,
+          errorDetails
+        })
       }
+    } else {
+      // Log that email was not found (for debugging, but don't reveal to user)
+      logger.info('Password reset requested for non-existent email', { 
+        requestedEmail: validated.email 
+      })
     }
     
     // Always return success message (security best practice)
