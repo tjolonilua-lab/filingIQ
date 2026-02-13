@@ -1,23 +1,53 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+
 interface FilingIQLogoProps {
   size?: 'sm' | 'md' | 'lg'
   showTagline?: boolean
   className?: string
+  onClick?: () => void
+  clickable?: boolean
 }
 
 export default function FilingIQLogo({ 
   size = 'md', 
   showTagline = false,
-  className = '' 
+  className = '',
+  onClick,
+  clickable = true
 }: FilingIQLogoProps) {
+  const router = useRouter()
+  
+  const handleClick = () => {
+    if (onClick) {
+      onClick()
+      return
+    }
+
+    if (!clickable) return
+
+    // Check authentication status at click time (client-side only)
+    if (typeof window !== 'undefined') {
+      const accountId = localStorage.getItem('account_id')
+      if (accountId) {
+        router.push('/admin')
+      } else {
+        router.push('/')
+      }
+    } else {
+      // Fallback for server-side rendering
+      router.push('/')
+    }
+  }
+
   const sizeClasses = {
     sm: 'text-xl',
     md: 'text-3xl',
     lg: 'text-5xl',
   }
 
-  return (
+  const logoContent = (
     <div className={`flex flex-col items-center ${className}`}>
       <div className="relative">
         {/* Glowing document icon */}
@@ -58,5 +88,15 @@ export default function FilingIQLogo({
       )}
     </div>
   )
+
+  if (clickable) {
+    return (
+      <div onClick={handleClick} className="cursor-pointer hover:opacity-80 transition-opacity">
+        {logoContent}
+      </div>
+    )
+  }
+
+  return logoContent
 }
 
