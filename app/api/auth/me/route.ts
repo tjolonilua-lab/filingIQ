@@ -4,7 +4,7 @@ import { handleApiError, unauthorizedError, notFoundError, okResponse, sanitizeA
 import { logger } from '@/lib/logger'
 import { getSession } from '@/lib/auth/session'
 
-export async function GET(request: NextRequest): Promise<Response> {
+export async function GET(_request: NextRequest): Promise<Response> {
   try {
     // Get account ID from httpOnly cookie session
     const accountId = await getSession()
