@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { findAccountById, updateAccountSettings, getFormConfig } from '@/lib/accounts'
+import { updateAccountSettings, getFormConfig } from '@/lib/accounts'
 import { FormConfiguration, validateFormConfig, defaultFormConfig } from '@/lib/form-config'
 import { handleApiError, handleZodError, unauthorizedError, validationError, okResponse } from '@/lib/api'
 import { requireAccountId } from '@/lib/api/auth'

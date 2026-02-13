@@ -3,7 +3,6 @@ import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import type { IntakeSubmission } from '@/lib/validation'
 import { getSubmissionsByAccountDB, isDatabaseAvailable } from '@/lib/db'
-import { verifyAdminAuth } from '@/lib/api/auth'
 import { unauthorizedError, serverError, okResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 
