@@ -73,10 +73,16 @@ export async function storeUpload(
     const filePath = join(uploadsDir, filename)
     await writeFile(filePath, buffer)
     return { urlOrPath: `/uploads/${filename}` }
-  } catch (error) {
+  } catch (error: any) {
     // If local storage fails (e.g., on Vercel), throw error to indicate S3 is required
     console.error('Local file storage failed. S3 must be configured for production:', error)
-    throw new Error('File storage failed. Please configure AWS S3 for production deployments.')
+    
+    // Provide a more user-friendly error message
+    if (error.code === 'EPERM' || error.code === 'EROFS' || error.message?.includes('read-only')) {
+      throw new Error('File upload is not configured. Please contact support or configure AWS S3 storage.')
+    }
+    
+    throw new Error(`Failed to save file: ${error.message || 'Unknown error'}`)
   }
 }
 

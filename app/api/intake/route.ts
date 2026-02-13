@@ -37,8 +37,14 @@ export async function POST(request: NextRequest) {
         })
       } catch (error) {
         console.error(`Failed to upload file ${file.name}:`, error)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         return NextResponse.json(
-          { success: false, message: `Failed to upload file: ${file.name}` },
+          { 
+            success: false, 
+            message: errorMessage.includes('S3') || errorMessage.includes('configure')
+              ? errorMessage
+              : `Failed to upload file: ${file.name}. ${errorMessage}` 
+          },
           { status: 500 }
         )
       }
