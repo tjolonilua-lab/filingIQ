@@ -1,31 +1,70 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { intakeSchema, type IntakeSubmission } from '@/lib/validation'
+import { intakeSchema, type IntakeSubmission, contactInfoSchema, filingInfoSchema, incomeTypesSchema } from '@/lib/validation'
 import { storeUpload } from '@/lib/upload'
 import { sendIntakeEmail } from '@/lib/email'
 import { analyzeDocuments, generateAnalysisSummary } from '@/lib/ai-analysis'
 import { isAIAnalysisEnabled } from '@/lib/business-config'
 import { createSubmissionDB, isDatabaseAvailable } from '@/lib/db'
+import { handleApiError, validationError, serverError, okResponse } from '@/lib/api'
+import { logger } from '@/lib/logger'
+import { getAccountIdFromRequest } from '@/lib/api/auth'
+import { withCorrelationId } from '@/lib/middleware/correlation'
+import type { AnalysisResult, DocumentWithAnalysis } from '@/lib/types/submission'
 
-export async function POST(request: NextRequest) {
+export const POST = withCorrelationId(async (request: NextRequest, correlationId: string) => {
   try {
-    // Get account ID from query params or header (for company-specific intake)
-    const accountId = request.headers.get('X-Account-Id') || request.nextUrl.searchParams.get('accountId') || null
+    // Get account ID from query params or header
+    const accountId = getAccountIdFromRequest(request)
     
     const formData = await request.formData()
 
-    // Parse JSON fields
-    const contactInfo = JSON.parse(formData.get('contactInfo') as string)
-    const filingInfo = JSON.parse(formData.get('filingInfo') as string)
-    const incomeInfo = JSON.parse(formData.get('incomeInfo') as string)
+    // Parse and validate JSON fields with proper error handling
+    let contactInfo, filingInfo, incomeInfo
+    
+    try {
+      const contactInfoStr = formData.get('contactInfo') as string
+      if (!contactInfoStr) {
+        return validationError('Contact information is required')
+      }
+      contactInfo = JSON.parse(contactInfoStr)
+      contactInfoSchema.parse(contactInfo) // Validate structure
+    } catch (error) {
+      logger.error('Failed to parse contact info', error as Error)
+      return validationError('Invalid contact information format')
+    }
+
+    try {
+      const filingInfoStr = formData.get('filingInfo') as string
+      if (!filingInfoStr) {
+        return validationError('Filing information is required')
+      }
+      filingInfo = JSON.parse(filingInfoStr)
+      filingInfoSchema.parse(filingInfo) // Validate structure
+    } catch (error) {
+      logger.error('Failed to parse filing info', error as Error)
+      return validationError('Invalid filing information format')
+    }
+
+    try {
+      const incomeInfoStr = formData.get('incomeInfo') as string
+      if (!incomeInfoStr) {
+        return validationError('Income information is required')
+      }
+      incomeInfo = JSON.parse(incomeInfoStr)
+      incomeTypesSchema.parse(incomeInfo) // Validate structure
+    } catch (error) {
+      logger.error('Failed to parse income info', error as Error)
+      return validationError('Invalid income information format')
+    }
     
     // Check business-level configuration for AI analysis
     const enableAIAnalysis = isAIAnalysisEnabled()
 
     // Handle file uploads
     const files = formData.getAll('files') as File[]
-    const uploadedDocuments = []
+    const uploadedDocuments: DocumentWithAnalysis[] = []
 
     for (const file of files) {
       try {
@@ -37,58 +76,55 @@ export async function POST(request: NextRequest) {
           type: file.type,
         })
       } catch (error) {
-        console.error(`Failed to upload file ${file.name}:`, error)
+        logger.error(`Failed to upload file ${file.name}`, error as Error)
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        return NextResponse.json(
-          { 
-            success: false, 
-            message: errorMessage.includes('S3') || errorMessage.includes('configure')
-              ? errorMessage
-              : `Failed to upload file: ${file.name}. ${errorMessage}` 
-          },
-          { status: 500 }
+        return serverError(
+          errorMessage.includes('S3') || errorMessage.includes('configure')
+            ? errorMessage
+            : `Failed to upload file: ${file.name}. ${errorMessage}`
         )
       }
     }
 
     // Analyze documents with AI (if enabled and configured)
-    let documentAnalyses: Array<{ filename: string; analysis: any; error?: string }> = []
+    let documentAnalyses: AnalysisResult[] = []
+    const enableAIAnalysis = isAIAnalysisEnabled()
+    
     if (enableAIAnalysis) {
       try {
-        console.log('Starting AI document analysis...')
+        logger.info('Starting AI document analysis', { documentCount: uploadedDocuments.length })
         documentAnalyses = await analyzeDocuments(uploadedDocuments)
         
         // Attach analysis results to documents
-        uploadedDocuments.forEach((doc: any, index) => {
+        uploadedDocuments.forEach((doc, index) => {
           const analysis = documentAnalyses[index]
           if (analysis?.analysis) {
             doc.analysis = analysis.analysis
           }
         })
         
-        console.log(`Completed analysis for ${documentAnalyses.filter(a => a.analysis).length} documents`)
+        const successCount = documentAnalyses.filter(a => a.analysis).length
+        logger.info(`Completed analysis for ${successCount} documents`)
       } catch (error) {
-        console.error('Document analysis failed (continuing without analysis):', error)
+        logger.error('Document analysis failed (continuing without analysis)', error as Error)
         // Continue without analysis - this is optional
       }
     }
 
     // Build intake submission
-    const intake: IntakeSubmission & { accountId?: string } = {
+    const intake: IntakeSubmission = {
       contactInfo,
       filingInfo,
       incomeInfo,
       documents: uploadedDocuments,
       submittedAt: new Date().toISOString(),
-      ...(accountId && { accountId }), // Include account ID if provided
     }
 
     // Validate with Zod
     const validationResult = intakeSchema.safeParse(intake)
     if (!validationResult.success) {
-      return NextResponse.json(
-        { success: false, message: 'Validation failed', errors: validationResult.error.errors },
-        { status: 400 }
+      return validationError(
+        `Validation failed: ${validationResult.error.errors.map(e => e.message).join(', ')}`
       )
     }
 
@@ -97,7 +133,7 @@ export async function POST(request: NextRequest) {
       const dbAvailable = await isDatabaseAvailable()
       if (dbAvailable) {
         await createSubmissionDB(accountId || null, intake)
-        console.log('✅ Submission saved to database')
+        logger.info('Submission saved to database', { accountId })
       } else {
         // Fallback to local filesystem (for local development)
         const dataDir = join(process.cwd(), 'data', 'intakes')
@@ -108,10 +144,10 @@ export async function POST(request: NextRequest) {
         const filePath = join(dataDir, filename)
 
         await writeFile(filePath, JSON.stringify(intake, null, 2), 'utf-8')
-        console.log('✅ Submission saved to filesystem (database not available)')
+        logger.info('Submission saved to filesystem (database not available)')
       }
     } catch (error) {
-      console.error('Failed to save intake data:', error)
+      logger.error('Failed to save intake data', error as Error)
       // Continue even if save fails - email can still be sent
     }
 
@@ -122,18 +158,16 @@ export async function POST(request: NextRequest) {
         ? generateAnalysisSummary(documentAnalyses)
         : null
       await sendIntakeEmail(intake, fileLinks, analysisSummary)
+      logger.info('Intake email sent successfully')
     } catch (error) {
-      console.error('Failed to send email:', error)
+      logger.error('Failed to send email', error as Error)
       // Continue even if email fails
     }
 
-    return NextResponse.json({ success: true })
+    return okResponse({}, 'Intake submission received successfully')
   } catch (error) {
-    console.error('Intake submission error:', error)
-    return NextResponse.json(
-      { success: false, message: error instanceof Error ? error.message : 'An error occurred' },
-      { status: 500 }
-    )
+    logger.error('Intake submission error', error as Error, { correlationId })
+    return handleApiError(error)
   }
-}
+})
 

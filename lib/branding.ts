@@ -15,6 +15,20 @@ export interface BusinessBranding {
   accentColor: string
 }
 
+/**
+ * Get business branding configuration
+ * 
+ * Returns branding settings from environment variables with sensible defaults.
+ * Used throughout the application for consistent branding.
+ * 
+ * @returns Business branding configuration object
+ * 
+ * @example
+ * ```typescript
+ * const branding = getBusinessBranding()
+ * // Use branding.primaryColor, branding.businessName, etc.
+ * ```
+ */
 export function getBusinessBranding(): BusinessBranding {
   return {
     businessName: process.env.BUSINESS_NAME || 'Tax Services',

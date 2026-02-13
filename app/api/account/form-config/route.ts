@@ -1,100 +1,71 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { findAccountById, updateAccountSettings, getFormConfig } from '@/lib/accounts'
 import { FormConfiguration, validateFormConfig, defaultFormConfig } from '@/lib/form-config'
+import { handleApiError, handleZodError, unauthorizedError, validationError, okResponse } from '@/lib/api'
+import { requireAccountId } from '@/lib/api/auth'
+import { logger } from '@/lib/logger'
 
 // GET: Retrieve form configuration
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
-    const accountId = request.headers.get('X-Account-Id')
-    
-    if (!accountId) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
+    const accountId = requireAccountId(request)
     const config = await getFormConfig(accountId)
     
-    return NextResponse.json({
-      success: true,
-      config,
-    })
+    return okResponse({ config })
   } catch (error) {
-    console.error('Get form config error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to get form configuration' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Account ID required') {
+      return unauthorizedError()
+    }
+    logger.error('Get form config error', error as Error)
+    return handleApiError(error)
   }
 }
 
 // POST: Update form configuration
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
-    const accountId = request.headers.get('X-Account-Id')
-    
-    if (!accountId) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
+    const accountId = requireAccountId(request)
     const body = await request.json()
     const config = body.config as FormConfiguration
 
     // Validate configuration
     const validation = validateFormConfig(config)
     if (!validation.valid) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid form configuration', errors: validation.errors },
-        { status: 400 }
+      return validationError(
+        `Invalid form configuration: ${validation.errors.join(', ')}`
       )
     }
 
     // Update account settings with form config
     await updateAccountSettings(accountId, { formConfig: config })
     
-    return NextResponse.json({
-      success: true,
-      message: 'Form configuration saved successfully',
-    })
+    return okResponse({}, 'Form configuration saved successfully')
   } catch (error) {
-    console.error('Update form config error:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to update form configuration' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Account ID required') {
+      return unauthorizedError()
+    }
+    logger.error('Update form config error', error as Error)
+    return handleApiError(error)
   }
 }
 
 // PUT: Reset to default configuration (clear custom config)
-export async function PUT(request: NextRequest) {
+export async function PUT(request: NextRequest): Promise<Response> {
   try {
-    const accountId = request.headers.get('X-Account-Id')
-    
-    if (!accountId) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
+    const accountId = requireAccountId(request)
 
     // Clear custom config by setting it to undefined (will use default)
     await updateAccountSettings(accountId, { formConfig: undefined })
     
-    return NextResponse.json({
-      success: true,
+    return okResponse({
       config: defaultFormConfig,
-      message: 'Form configuration reset to default',
-    })
+    }, 'Form configuration reset to default')
   } catch (error) {
-    console.error('Reset form config error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to reset form configuration' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Account ID required') {
+      return unauthorizedError()
+    }
+    logger.error('Reset form config error', error as Error)
+    return handleApiError(error)
   }
 }
 

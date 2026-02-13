@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { initDatabase } from '@/lib/db'
+import { logger } from '@/lib/logger'
+import { serverError, okResponse } from '@/lib/api'
 
 /**
  * Initialize database tables
@@ -21,21 +23,15 @@ export async function GET() {
     }
 
     await initDatabase()
-    return NextResponse.json({
-      success: true,
+    return okResponse({
       message: 'Database initialized successfully',
-      tables: ['accounts'],
+      tables: ['accounts', 'submissions', 'password_reset_tokens'],
     })
   } catch (error) {
-    console.error('Database initialization error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to initialize database'
-    return NextResponse.json(
-      {
-        success: false,
-        error: errorMessage,
-        details: error instanceof Error ? error.stack : undefined,
-      },
-      { status: 500 }
+    logger.error('Database initialization error', error as Error)
+    return serverError(
+      error instanceof Error ? error.message : 'Failed to initialize database',
+      error instanceof Error ? error.stack : undefined
     )
   }
 }

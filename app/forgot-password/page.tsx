@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import FilingIQLogo from '@/components/FilingIQLogo'
-import HolographicPanel from '@/components/HolographicPanel'
+import { FilingIQLogo, HolographicPanel } from '@/components'
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
@@ -35,7 +34,7 @@ export default function ForgotPasswordPage() {
         setError(data.error || 'An error occurred. Please try again.')
       }
     } catch (error) {
-      console.error('Forgot password error:', error)
+      // Error handled by error state
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)

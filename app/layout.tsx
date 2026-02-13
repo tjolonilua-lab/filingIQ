@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export function generateMetadata(): Metadata {
   return {
@@ -12,10 +13,14 @@ export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
-}) {
+}): React.ReactElement {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-white">{children}</body>
+      <body className="min-h-screen bg-white">
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+      </body>
     </html>
   )
 }

@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import FilingIQLogo from '@/components/FilingIQLogo'
-import Button from '@/components/Button'
-import HolographicPanel from '@/components/HolographicPanel'
+import { FilingIQLogo, Button, HolographicPanel } from '@/components'
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -44,7 +42,7 @@ export default function SignupPage() {
       const data = await response.json()
       setSlugAvailable(data.available || false)
     } catch (error) {
-      console.error('Error checking slug:', error)
+      // Error checking slug - non-critical, user can still proceed
       setSlugAvailable(null)
     } finally {
       setCheckingSlug(false)
@@ -94,7 +92,7 @@ export default function SignupPage() {
         setError(data.error || 'Failed to create account')
       }
     } catch (error) {
-      console.error('Signup error:', error)
+      // Signup error handled by error state
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)

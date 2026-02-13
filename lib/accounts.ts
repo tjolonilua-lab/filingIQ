@@ -2,6 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
 import { FormConfiguration, defaultFormConfig } from './form-config'
+import { logger } from './logger'
 import {
   isDatabaseAvailable,
   loadAccountsFromDB,
@@ -13,23 +14,7 @@ import {
   updateAccountDB,
   updateAccountSettingsDB,
 } from './db'
-
-export interface CompanyAccount {
-  id: string
-  companyName: string
-  email: string
-  passwordHash: string // bcrypt hash
-  website: string
-  slug: string // Vanity URL slug (e.g., "flo-financial")
-  createdAt: string
-  settings?: {
-    phone?: string
-    mainWebsiteUrl?: string
-    primaryColor?: string
-    accentColor?: string
-    formConfig?: FormConfiguration // Custom form configuration
-  }
-}
+import type { CompanyAccount } from './types/account'
 
 const ACCOUNTS_DIR = path.join(process.cwd(), 'data', 'accounts')
 const ACCOUNTS_FILE = path.join(ACCOUNTS_DIR, 'accounts.json')
@@ -46,6 +31,21 @@ async function ensureAccountsDir() {
 import bcrypt from 'bcryptjs'
 
 // Secure password hashing using bcrypt
+/**
+ * Hash a password using bcrypt
+ * 
+ * Securely hashes a password using bcrypt with configurable rounds.
+ * Never store plain text passwords - always use this function.
+ * 
+ * @param password - The plain text password to hash
+ * @returns A bcrypt hash string
+ * 
+ * @example
+ * ```typescript
+ * const hash = await hashPassword('mySecurePassword123')
+ * // Store hash in database, never store plain password
+ * ```
+ */
 export async function hashPassword(password: string): Promise<string> {
   // Use 10 rounds (good balance of security and performance)
   const saltRounds = 10
@@ -53,18 +53,50 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 // Verify password against bcrypt hash
+/**
+ * Verify a password against a bcrypt hash
+ * 
+ * Compares a plain text password with a stored hash to verify authentication.
+ * 
+ * @param password - The plain text password to verify
+ * @param hash - The bcrypt hash to compare against
+ * @returns True if password matches hash, false otherwise
+ * 
+ * @example
+ * ```typescript
+ * const account = await findAccountByEmail(email)
+ * if (!account) return unauthorizedError()
+ * 
+ * const isValid = await verifyPassword(password, account.passwordHash)
+ * if (!isValid) return unauthorizedError()
+ * ```
+ */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return await bcrypt.compare(password, hash)
 }
 
 // Load all accounts (uses database if available, falls back to file system)
+/**
+ * Load all accounts
+ * 
+ * Loads all accounts from the database or filesystem. Uses database
+ * if available, falls back to filesystem for local development.
+ * 
+ * @returns Array of all accounts
+ * 
+ * @example
+ * ```typescript
+ * const accounts = await loadAccounts()
+ * // Process accounts...
+ * ```
+ */
 export async function loadAccounts(): Promise<CompanyAccount[]> {
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
       return await loadAccountsFromDB()
     } catch (error) {
-      console.error('Error loading from database, falling back to file system:', error)
+      logger.error('Error loading from database, falling back to file system', error as Error)
     }
   }
   
@@ -87,7 +119,7 @@ async function saveAccounts(accounts: CompanyAccount[]): Promise<void> {
   } catch (error: any) {
     // On Vercel, filesystem is read-only. This will fail in production.
     // In production, you should use a database (e.g., PostgreSQL, MongoDB) or Vercel KV
-    console.error('Failed to save accounts file:', error)
+    logger.error('Failed to save accounts file', error as Error)
     if (error.code === 'EPERM' || error.code === 'EROFS') {
       throw new Error('File system is read-only. Please configure a database for production deployments.')
     }
@@ -111,7 +143,7 @@ export async function isSlugAvailable(slug: string, excludeAccountId?: string): 
     try {
       return await isSlugAvailableDB(slug, excludeAccountId)
     } catch (error) {
-      console.error('Error checking slug in database, falling back to file system:', error)
+      logger.error('Error checking slug in database, falling back to file system', error as Error)
     }
   }
   
@@ -141,6 +173,32 @@ export async function isSlugAvailable(slug: string, excludeAccountId?: string): 
 }
 
 // Create new account (uses database if available, falls back to file system)
+/**
+ * Create a new company account
+ * 
+ * Creates a new account with hashed password and unique slug. Uses database
+ * if available, falls back to filesystem for local development.
+ * 
+ * @param data - Account creation data
+ * @param data.companyName - The company name
+ * @param data.email - Unique email address
+ * @param data.password - Plain text password (will be hashed)
+ * @param data.website - Company website URL
+ * @param data.slug - Optional custom slug (auto-generated if not provided)
+ * @returns The created account with hashed password
+ * @throws {Error} If email already exists or slug is taken
+ * 
+ * @example
+ * ```typescript
+ * const account = await createAccount({
+ *   companyName: 'Acme Corp',
+ *   email: 'admin@acme.com',
+ *   password: 'secure123',
+ *   website: 'https://acme.com',
+ *   slug: 'acme-corp' // optional
+ * })
+ * ```
+ */
 export async function createAccount(data: {
   companyName: string
   email: string
@@ -177,7 +235,7 @@ export async function createAccount(data: {
         settings: {},
       })
     } catch (error) {
-      console.error('Error creating account in database, falling back to file system:', error)
+      logger.error('Error creating account in database, falling back to file system', error as Error)
       // If it's a known error (like email already exists), re-throw it
       if (error instanceof Error && (error.message.includes('Email already') || error.message.includes('Slug already'))) {
         throw error
@@ -230,7 +288,7 @@ export async function findAccountByEmail(email: string): Promise<CompanyAccount 
     try {
       return await findAccountByEmailDB(email)
     } catch (error) {
-      console.error('Error finding account in database, falling back to file system:', error)
+      logger.error('Error finding account in database, falling back to file system', error as Error)
     }
   }
   
@@ -239,14 +297,30 @@ export async function findAccountByEmail(email: string): Promise<CompanyAccount 
   return accounts.find(acc => acc.email === email) || null
 }
 
-// Find account by ID (uses database if available, falls back to file system)
+/**
+ * Find account by ID
+ * 
+ * Searches for an account by its unique ID. Uses database if available,
+ * falls back to filesystem for local development.
+ * 
+ * @param id - The account ID to search for
+ * @returns The account if found, null otherwise
+ * 
+ * @example
+ * ```typescript
+ * const account = await findAccountById(accountId)
+ * if (!account) {
+ *   return notFoundError('Account not found')
+ * }
+ * ```
+ */
 export async function findAccountById(id: string): Promise<CompanyAccount | null> {
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
       return await findAccountByIdDB(id)
     } catch (error) {
-      console.error('Error finding account in database, falling back to file system:', error)
+      logger.error('Error finding account in database, falling back to file system', error as Error)
     }
   }
   
@@ -255,14 +329,30 @@ export async function findAccountById(id: string): Promise<CompanyAccount | null
   return accounts.find(acc => acc.id === id) || null
 }
 
-// Find account by slug (uses database if available, falls back to file system)
+/**
+ * Find account by slug
+ * 
+ * Searches for an account by its unique slug (vanity URL identifier).
+ * Uses database if available, falls back to filesystem for local development.
+ * 
+ * @param slug - The slug to search for (case-insensitive)
+ * @returns The account if found, null otherwise
+ * 
+ * @example
+ * ```typescript
+ * const account = await findAccountBySlug('acme-corp')
+ * if (!account) {
+ *   return notFoundError('Company not found')
+ * }
+ * ```
+ */
 export async function findAccountBySlug(slug: string): Promise<CompanyAccount | null> {
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
       return await findAccountBySlugDB(slug)
     } catch (error) {
-      console.error('Error finding account in database, falling back to file system:', error)
+      logger.error('Error finding account in database, falling back to file system', error as Error)
     }
   }
   
@@ -272,7 +362,25 @@ export async function findAccountBySlug(slug: string): Promise<CompanyAccount | 
   return accounts.find(acc => acc.slug && acc.slug.toLowerCase() === normalizedSlug) || null
 }
 
-// Update account settings (uses database if available, falls back to file system)
+/**
+ * Update account settings
+ * 
+ * Updates account settings including form configuration, branding, etc.
+ * Uses database if available, falls back to filesystem for local development.
+ * 
+ * @param accountId - The account ID to update
+ * @param settings - Partial settings object to update
+ * @returns The updated account
+ * @throws {Error} If account is not found
+ * 
+ * @example
+ * ```typescript
+ * const account = await updateAccountSettings(accountId, {
+ *   primaryColor: '#1e3a5f',
+ *   formConfig: customConfig
+ * })
+ * ```
+ */
 export async function updateAccountSettings(
   accountId: string,
   settings: Partial<CompanyAccount['settings']> & { formConfig?: FormConfiguration | null | undefined }
@@ -282,7 +390,7 @@ export async function updateAccountSettings(
     try {
       return await updateAccountSettingsDB(accountId, settings)
     } catch (error) {
-      console.error('Error updating account settings in database, falling back to file system:', error)
+      logger.error('Error updating account settings in database, falling back to file system', error as Error)
     }
   }
   
@@ -313,7 +421,25 @@ export async function updateAccountSettings(
   return accounts[accountIndex]
 }
 
-// Update account (uses database if available, falls back to file system)
+/**
+ * Update account information
+ * 
+ * Updates basic account information (company name, email, website, slug).
+ * Uses database if available, falls back to filesystem for local development.
+ * 
+ * @param accountId - The account ID to update
+ * @param updates - Partial account data to update
+ * @returns The updated account
+ * @throws {Error} If account is not found or slug is not available
+ * 
+ * @example
+ * ```typescript
+ * const account = await updateAccount(accountId, {
+ *   companyName: 'New Company Name',
+ *   website: 'https://newwebsite.com'
+ * })
+ * ```
+ */
 export async function updateAccount(
   accountId: string,
   updates: Partial<Pick<CompanyAccount, 'companyName' | 'website' | 'email' | 'slug'>>
@@ -332,7 +458,7 @@ export async function updateAccount(
       
       return await updateAccountDB(accountId, updates)
     } catch (error) {
-      console.error('Error updating account in database, falling back to file system:', error)
+      logger.error('Error updating account in database, falling back to file system', error as Error)
       // If it's a known error, re-throw it
       if (error instanceof Error && (error.message.includes('not available') || error.message.includes('already in use'))) {
         throw error
@@ -366,7 +492,21 @@ export async function updateAccount(
   return accounts[accountIndex]
 }
 
-// Get form configuration for an account (with default fallback)
+/**
+ * Get form configuration for an account
+ * 
+ * Retrieves the custom form configuration for an account, falling back
+ * to the default configuration if none is set.
+ * 
+ * @param accountId - The account ID
+ * @returns The form configuration (custom or default)
+ * 
+ * @example
+ * ```typescript
+ * const config = await getFormConfig(accountId)
+ * // Use config.steps, config.version, etc.
+ * ```
+ */
 export async function getFormConfig(accountId: string): Promise<FormConfiguration> {
   const account = await findAccountById(accountId)
   if (!account) {

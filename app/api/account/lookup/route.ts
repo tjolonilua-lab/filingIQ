@@ -1,39 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { findAccountBySlug } from '@/lib/accounts'
+import { handleApiError, validationError, notFoundError, okResponse, sanitizeAccount } from '@/lib/api'
+import { logger } from '@/lib/logger'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
     const slug = request.nextUrl.searchParams.get('slug')
     
     if (!slug) {
-      return NextResponse.json(
-        { success: false, error: 'Slug required' },
-        { status: 400 }
-      )
+      return validationError('Slug required')
     }
 
     const account = await findAccountBySlug(slug)
     
     if (!account) {
-      return NextResponse.json(
-        { success: false, error: 'Account not found' },
-        { status: 404 }
-      )
+      return notFoundError('Account not found')
     }
 
     // Return account (without password hash)
-    const { passwordHash, ...accountWithoutPassword } = account
-    
-    return NextResponse.json({
-      success: true,
-      account: accountWithoutPassword,
-    })
+    return okResponse({ account: sanitizeAccount(account) })
   } catch (error) {
-    console.error('Lookup account error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to lookup account' },
-      { status: 500 }
-    )
+    logger.error('Lookup account error', error as Error, { slug: request.nextUrl.searchParams.get('slug') })
+    return handleApiError(error)
   }
 }
 

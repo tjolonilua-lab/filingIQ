@@ -37,7 +37,7 @@ export default function CompanyIntakePage() {
         setLoading(false)
       }
     } catch (error) {
-      console.error('Error fetching account:', error)
+      // Error fetching account - handled by error state
       setError('Failed to load intake form')
       setLoading(false)
     }

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import FilingIQLogo from '@/components/FilingIQLogo'
-import HolographicPanel from '@/components/HolographicPanel'
+import { FilingIQLogo, HolographicPanel } from '@/components'
 
 function ResetPasswordForm() {
   const router = useRouter()

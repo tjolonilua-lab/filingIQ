@@ -1,40 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { findAccountById } from '@/lib/accounts'
+import { handleApiError, unauthorizedError, notFoundError, okResponse, sanitizeAccount } from '@/lib/api'
+import { logger } from '@/lib/logger'
+import { getSession } from '@/lib/auth/session'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
-    // Get account ID from header (set by client after login)
-    const accountId = request.headers.get('X-Account-Id')
-    
+    // Get account ID from httpOnly cookie session
+    const accountId = await getSession()
     if (!accountId) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      )
+      return unauthorizedError()
     }
-
+    
     const account = await findAccountById(accountId)
     
     if (!account) {
-      return NextResponse.json(
-        { success: false, error: 'Account not found' },
-        { status: 404 }
-      )
+      return notFoundError('Account not found')
     }
 
     // Return account (without password hash)
-    const { passwordHash, ...accountWithoutPassword } = account
-    
-    return NextResponse.json({
-      success: true,
-      account: accountWithoutPassword,
-    })
+    return okResponse({ account: sanitizeAccount(account) })
   } catch (error) {
-    console.error('Get account error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to get account' },
-      { status: 500 }
-    )
+    logger.error('Get account error', error as Error)
+    return handleApiError(error)
   }
 }
 

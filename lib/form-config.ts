@@ -142,6 +142,23 @@ export const defaultFormConfig: FormConfiguration = {
 }
 
 // Validate form configuration
+/**
+ * Validate form configuration
+ * 
+ * Validates that a form configuration is properly structured and contains
+ * all required fields. Used when updating form configurations.
+ * 
+ * @param config - The form configuration to validate
+ * @returns Validation result with valid flag and array of error messages
+ * 
+ * @example
+ * ```typescript
+ * const validation = validateFormConfig(config)
+ * if (!validation.valid) {
+ *   return validationError(validation.errors.join(', '))
+ * }
+ * ```
+ */
 export function validateFormConfig(config: FormConfiguration): { valid: boolean; errors: string[] } {
   const errors: string[] = []
 

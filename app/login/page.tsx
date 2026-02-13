@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import FilingIQLogo from '@/components/FilingIQLogo'
-import HolographicPanel from '@/components/HolographicPanel'
+import { FilingIQLogo, HolographicPanel } from '@/components'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -30,22 +29,19 @@ export default function LoginPage() {
       })
 
       const data = await response.json()
-      console.log('Login response:', data)
 
       if (data.success && data.account && data.account.id) {
         // Store account ID in localStorage for session management
+        // TODO: Replace with httpOnly cookies for production
         localStorage.setItem('account_id', data.account.id)
         localStorage.setItem('account_email', data.account.email || formData.email)
-        console.log('Stored account_id:', data.account.id)
         // Use router.push for better navigation
         router.push('/admin')
       } else {
         const errorMsg = data.error || 'Invalid credentials'
         setError(errorMsg)
-        console.error('Login failed:', data)
       }
     } catch (error) {
-      console.error('Login error:', error)
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)

@@ -3,6 +3,8 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { logger } from '@/lib/logger'
+import { validationError, serverError, notFoundError } from '@/lib/api'
 
 const s3Client = process.env.AWS_ACCESS_KEY_ID
   ? new S3Client({
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
           const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
           return NextResponse.redirect(signedUrl)
         } catch (error) {
-          console.error('S3 signed URL generation error:', error)
+          logger.error('S3 signed URL generation error', error as Error, { path })
           // Fall through to direct redirect (may fail if bucket is private)
         }
       }
@@ -98,14 +100,14 @@ export async function GET(request: NextRequest) {
           { status: 404 }
         )
       }
-      console.error('File read error:', error)
+      logger.error('File read error', error as Error, { path })
       return NextResponse.json(
         { success: false, error: 'File not found' },
         { status: 404 }
       )
     }
   } catch (error) {
-    console.error('Download error:', error)
+    logger.error('Download error', error as Error, { path, filename })
     return NextResponse.json(
       { success: false, error: 'Failed to download file' },
       { status: 500 }

@@ -1,11 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import FilingIQLogo from '@/components/FilingIQLogo'
-import AdminSidebar from '@/components/AdminSidebar'
-import ClientsView from '@/components/ClientsView'
-import SettingsView from '@/components/SettingsView'
-import FormBuilderView from '@/components/FormBuilderView'
+import { FilingIQLogo, AdminSidebar, ClientsView, SettingsView, FormBuilderView } from '@/components'
 import type { IntakeSubmission } from '@/lib/validation'
 
 export default function AdminPage() {
@@ -52,7 +48,7 @@ export default function AdminPage() {
         setSubmissions(data.submissions || [])
       }
     } catch (error) {
-      console.error('Error fetching submissions:', error)
+      // Error fetching submissions - handled by loading state
     } finally {
       setLoading(false)
     }

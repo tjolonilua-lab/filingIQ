@@ -2,14 +2,11 @@ import OpenAI from 'openai'
 import type { DocumentAnalysis } from '@/lib/validation'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { logger } from './logger'
 
 // DocumentAnalysis type is imported from validation
 
-interface AnalysisResult {
-  filename: string
-  analysis: DocumentAnalysis | null
-  error?: string
-}
+import type { AnalysisResult } from './types/submission'
 
 // Initialize OpenAI client if API key is available
 const openai = process.env.OPENAI_API_KEY
@@ -28,7 +25,7 @@ async function analyzeDocumentFromBuffer(
 ): Promise<DocumentAnalysis | null> {
   // Skip if OpenAI is not configured
   if (!openai) {
-    console.log('OpenAI API key not configured, skipping document analysis')
+    logger.warn('OpenAI API key not configured, skipping document analysis')
     return null
   }
 
@@ -67,7 +64,7 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
 
     // Call OpenAI Vision API
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: process.env.OPENAI_MODEL || OPENAI_DEFAULT_MODEL,
       messages: [
         {
           role: 'user',
@@ -85,13 +82,13 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
           ],
         },
       ],
-      max_tokens: 2000,
-      temperature: 0.1, // Low temperature for more consistent extraction
+      max_tokens: OPENAI_MAX_TOKENS,
+      temperature: OPENAI_TEMPERATURE, // Low temperature for more consistent extraction
     })
 
     const analysisText = response.choices[0]?.message?.content
     if (!analysisText) {
-      console.error('No analysis returned from OpenAI')
+      logger.error('No analysis returned from OpenAI', undefined, { filename })
       return null
     }
 
@@ -99,7 +96,7 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
     // We'll try to extract structured data from the response
     return parseAnalysisResponse(analysisText, filename)
   } catch (error) {
-    console.error(`Error analyzing document ${filename}:`, error)
+    logger.error(`Error analyzing document ${filename}`, error as Error)
     return null
   }
 }
@@ -129,7 +126,7 @@ export async function analyzeDocument(
 
     return await analyzeDocumentFromBuffer(base64Image, filename, imageFormat)
   } catch (error) {
-    console.error(`Error reading file ${filename}:`, error)
+    logger.error(`Error reading file ${filename}`, error as Error)
     return null
   }
 }
@@ -201,7 +198,20 @@ function parseAnalysisResponse(
 }
 
 /**
- * Analyzes multiple documents
+ * Analyzes multiple tax documents using OpenAI Vision API
+ * 
+ * Processes multiple documents, downloading from S3 if needed, and analyzes
+ * each one to extract tax information and identify optimization strategies.
+ * 
+ * @param documents - Array of document objects with filename, urlOrPath, and type
+ * @returns Array of analysis results, one per document
+ * 
+ * @example
+ * ```typescript
+ * const results = await analyzeDocuments([
+ *   { filename: 'w2.pdf', urlOrPath: 'https://s3.../w2.pdf', type: 'application/pdf' }
+ * ])
+ * ```
  */
 export async function analyzeDocuments(
   documents: Array<{ filename: string; urlOrPath: string; type: string }>
@@ -273,7 +283,19 @@ export async function analyzeDocuments(
 }
 
 /**
- * Generates a summary of all document analyses
+ * Generate a summary of all document analyses
+ * 
+ * Creates a human-readable summary of multiple document analyses,
+ * highlighting key findings and document types.
+ * 
+ * @param analyses - Array of analysis results
+ * @returns A formatted summary string
+ * 
+ * @example
+ * ```typescript
+ * const summary = generateAnalysisSummary(analysisResults)
+ * await sendIntakeEmail(intake, fileLinks, summary)
+ * ```
  */
 export function generateAnalysisSummary(analyses: AnalysisResult[]): string {
   const successful = analyses.filter((a) => a.analysis)

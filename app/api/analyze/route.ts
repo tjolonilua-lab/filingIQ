@@ -1,21 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { analyzeDocuments } from '@/lib/ai-analysis'
 import { storeUpload } from '@/lib/upload'
+import { handleApiError, validationError, okResponse } from '@/lib/api'
+import { logger } from '@/lib/logger'
+import type { DocumentWithAnalysis } from '@/lib/types/submission'
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
 
     if (files.length === 0) {
-      return NextResponse.json(
-        { success: false, message: 'No files provided' },
-        { status: 400 }
-      )
+      return validationError('No files provided')
     }
 
     // Upload files first
-    const uploadedDocuments = []
+    const uploadedDocuments: DocumentWithAnalysis[] = []
     for (const file of files) {
       try {
         const result = await storeUpload(file, file.name)
@@ -26,30 +26,18 @@ export async function POST(request: NextRequest) {
           type: file.type,
         })
       } catch (error) {
-        console.error(`Failed to upload file ${file.name}:`, error)
-        return NextResponse.json(
-          { success: false, message: `Failed to upload file: ${file.name}` },
-          { status: 500 }
-        )
+        logger.error(`Failed to upload file ${file.name}`, error as Error)
+        return handleApiError(error)
       }
     }
 
     // Analyze documents
     const results = await analyzeDocuments(uploadedDocuments)
 
-    return NextResponse.json({
-      success: true,
-      results,
-    })
+    return okResponse({ results })
   } catch (error) {
-    console.error('Analysis error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : 'Analysis failed',
-      },
-      { status: 500 }
-    )
+    logger.error('Analysis error', error as Error)
+    return handleApiError(error)
   }
 }
 

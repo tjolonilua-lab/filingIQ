@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { findAccountByEmail } from '@/lib/accounts'
 import { createPasswordResetTokenDB } from '@/lib/db'
 import { z } from 'zod'
+import { handleApiError, handleZodError, okResponse } from '@/lib/api'
+import { API_MESSAGES } from '@/lib/constants'
+import { logger } from '@/lib/logger'
+import { withRateLimit, RATE_LIMITS } from '@/lib/middleware/rate-limit'
 
 // Dynamic import to work around Turbopack module resolution issue
 const getSendPasswordResetEmail = async () => {
@@ -13,7 +17,7 @@ const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
 })
 
-export async function POST(request: NextRequest) {
+const forgotPasswordHandler = async (request: NextRequest) => {
   try {
     const body = await request.json()
     
@@ -34,30 +38,47 @@ export async function POST(request: NextRequest) {
         const sendPasswordResetEmail = await getSendPasswordResetEmail()
         await sendPasswordResetEmail(account.email, account.companyName, token)
         
-        console.log(`Password reset token created for account: ${account.id}`)
+        logger.info('Password reset token created', { accountId: account.id })
       } catch (error) {
         // Log error but don't reveal it to user
-        console.error('Error creating password reset token:', error)
+        logger.error('Error creating password reset token', error as Error, { accountId: account.id })
       }
     }
     
     // Always return success message (security best practice)
-    return NextResponse.json({
-      success: true,
-      message: 'If an account with that email exists, a password reset link has been sent.',
-    })
+    return okResponse({}, API_MESSAGES.PASSWORD_RESET_SENT)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0].message },
-        { status: 400 }
-      )
-    }
-
-    console.error('Forgot password error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to process request' },
-      { status: 500 }
-    )
+    const zodError = handleZodError(error)
+    if (zodError) return zodError
+    
+    return handleApiError(error)
   }
 }
+
+// Apply rate limiting (3 attempts per hour per email)
+export const POST = withRateLimit(
+  forgotPasswordHandler,
+  RATE_LIMITS.PASSWORD_RESET,
+  async (req) => {
+    try {
+      const body = await req.json()
+      return body?.email // Rate limit by email
+    } catch {
+      return undefined
+    }
+  }
+)
+
+// Apply rate limiting (3 attempts per hour per email)
+export const POST = withRateLimit(
+  forgotPasswordHandler,
+  RATE_LIMITS.PASSWORD_RESET,
+  async (req) => {
+    try {
+      const body = await req.json()
+      return body?.email // Rate limit by email
+    } catch {
+      return undefined
+    }
+  }
+)

@@ -1,12 +1,12 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from './constants'
+import { logger } from './logger'
 
 interface UploadResult {
   urlOrPath: string
 }
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 // Initialize S3 client if credentials are available
 const s3Client = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
@@ -19,6 +19,23 @@ const s3Client = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_
     })
   : null
 
+/**
+ * Store an uploaded file to S3 or local filesystem
+ * 
+ * Validates file size and type, then uploads to S3 if configured,
+ * otherwise falls back to local filesystem (development only).
+ * 
+ * @param file - The File object from the upload
+ * @param filenameHint - Optional filename hint (defaults to file.name)
+ * @returns Object containing the URL or path to the stored file
+ * @throws {Error} If file size exceeds limit, invalid file type, or upload fails
+ * 
+ * @example
+ * ```typescript
+ * const result = await storeUpload(file, 'document.pdf')
+ * // result.urlOrPath will be S3 URL or local path
+ * ```
+ */
 export async function storeUpload(
   file: File,
   filenameHint?: string
@@ -29,8 +46,7 @@ export async function storeUpload(
   }
 
   // Validate file type
-  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
-  if (!allowedTypes.includes(file.type)) {
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
     throw new Error(`Invalid file type. Allowed: PDF, JPG, PNG`)
   }
 
@@ -42,7 +58,7 @@ export async function storeUpload(
   // Try S3 upload first if configured
   if (s3Client && process.env.AWS_S3_BUCKET) {
     try {
-      console.log('Attempting S3 upload to bucket:', process.env.AWS_S3_BUCKET)
+      logger.debug('Attempting S3 upload', { bucket: process.env.AWS_S3_BUCKET, filename })
       const command = new PutObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET,
         Key: `intakes/${filename}`,
@@ -51,7 +67,7 @@ export async function storeUpload(
       })
 
       await s3Client.send(command)
-      console.log('S3 upload successful:', filename)
+      logger.info('S3 upload successful', { filename, bucket: process.env.AWS_S3_BUCKET })
 
       // Generate S3 URL - us-east-1 uses different format (no region in URL)
       const region = process.env.AWS_REGION || 'us-east-1'
@@ -68,29 +84,29 @@ export async function storeUpload(
       }
       
       return { urlOrPath: url }
-    } catch (error: any) {
-      console.error('S3 upload failed:', error)
-      console.error('S3 error details:', {
-        code: error.code,
-        message: error.message,
+    } catch (error: unknown) {
+      const errorObj = error as { code?: string; message?: string }
+      logger.error('S3 upload failed', error as Error, {
+        code: errorObj.code,
+        message: errorObj.message,
         bucket: process.env.AWS_S3_BUCKET,
         region: process.env.AWS_REGION,
         hasCredentials: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
       })
       // Re-throw S3 errors with more context
-      if (error.code === 'AccessDenied' || error.code === '403') {
+      if (errorObj.code === 'AccessDenied' || errorObj.code === '403') {
         throw new Error('S3 access denied. Check IAM user permissions and bucket policy.')
       }
-      if (error.code === 'NoSuchBucket' || error.code === '404') {
+      if (errorObj.code === 'NoSuchBucket' || errorObj.code === '404') {
         throw new Error(`S3 bucket not found: ${process.env.AWS_S3_BUCKET}. Check bucket name and region.`)
       }
-      if (error.code === 'InvalidAccessKeyId' || error.code === 'SignatureDoesNotMatch') {
+      if (errorObj.code === 'InvalidAccessKeyId' || errorObj.code === 'SignatureDoesNotMatch') {
         throw new Error('Invalid AWS credentials. Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.')
       }
-      throw new Error(`S3 upload failed: ${error.message || error.code || 'Unknown error'}`)
+      throw new Error(`S3 upload failed: ${errorObj.message || errorObj.code || 'Unknown error'}`)
     }
   } else {
-    console.warn('S3 not configured:', {
+    logger.warn('S3 not configured, falling back to local storage', {
       hasClient: !!s3Client,
       hasBucket: !!process.env.AWS_S3_BUCKET,
       hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,

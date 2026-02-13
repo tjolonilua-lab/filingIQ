@@ -1,31 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { isSlugAvailable } from '@/lib/accounts'
+import { handleApiError, validationError, okResponse } from '@/lib/api'
+import { logger } from '@/lib/logger'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
     const slug = request.nextUrl.searchParams.get('slug')
     const excludeAccountId = request.nextUrl.searchParams.get('excludeAccountId') || undefined
     
     if (!slug) {
-      return NextResponse.json(
-        { success: false, error: 'Slug required' },
-        { status: 400 }
-      )
+      return validationError('Slug required')
     }
 
     const available = await isSlugAvailable(slug, excludeAccountId)
     
-    return NextResponse.json({
-      success: true,
+    return okResponse({
       available,
       slug: slug.toLowerCase().trim(),
     })
   } catch (error) {
-    console.error('Check slug error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to check slug availability' },
-      { status: 500 }
-    )
+    logger.error('Check slug error', error as Error, { slug: request.nextUrl.searchParams.get('slug') })
+    return handleApiError(error)
   }
 }
 

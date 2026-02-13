@@ -1,19 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import type { IntakeSubmission } from '@/lib/validation'
 import { getSubmissionsByAccountDB, isDatabaseAvailable } from '@/lib/db'
-
-// Simple password-based auth (in production, use proper auth)
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
-
-function verifyAuth(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader) return false
-  
-  const token = authHeader.replace('Bearer ', '')
-  return token === ADMIN_PASSWORD
-}
+import { verifyAdminAuth } from '@/lib/api/auth'
+import { unauthorizedError, serverError, okResponse } from '@/lib/api/response'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,10 +13,7 @@ export async function GET(request: NextRequest) {
     const accountId = request.headers.get('X-Account-Id')
     
     if (!accountId) {
-      return NextResponse.json(
-        { success: false, error: 'Account ID required' },
-        { status: 401 }
-      )
+      return unauthorizedError('Account ID required')
     }
 
     // Try database first (preferred)
@@ -32,13 +21,12 @@ export async function GET(request: NextRequest) {
     if (dbAvailable) {
       try {
         const submissions = await getSubmissionsByAccountDB(accountId)
-        return NextResponse.json({
-          success: true,
+        return okResponse({
           count: submissions.length,
           submissions,
         })
       } catch (error) {
-        console.error('Error fetching submissions from database:', error)
+        logger.error('Error fetching submissions from database', error as Error, { accountId })
         // Fall through to filesystem fallback
       }
     }
@@ -53,8 +41,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       // Directory doesn't exist (common on Vercel if no submissions yet)
       // Return empty array instead of error
-      return NextResponse.json({
-        success: true,
+      return okResponse({
         count: 0,
         submissions: [],
       })
@@ -81,7 +68,7 @@ export async function GET(request: NextRequest) {
           id: file.replace('.json', ''),
         })
       } catch (error) {
-        console.error(`Error reading file ${file}:`, error)
+        logger.error(`Error reading file ${file}`, error as Error)
       }
     }
 
@@ -90,17 +77,13 @@ export async function GET(request: NextRequest) {
       new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     )
 
-    return NextResponse.json({
-      success: true,
+    return okResponse({
       count: submissions.length,
       submissions,
     })
   } catch (error) {
-    console.error('Error fetching submissions:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch submissions' },
-      { status: 500 }
-    )
+    logger.error('Error fetching submissions', error as Error, { accountId })
+    return serverError('Failed to fetch submissions')
   }
 }
 

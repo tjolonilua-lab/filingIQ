@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { updateAccountSettings } from '@/lib/accounts'
 import { z } from 'zod'
+import { handleApiError, handleZodError, okResponse, unauthorizedError, sanitizeAccount } from '@/lib/api'
+import { requireAccountId } from '@/lib/api/auth'
 
 const settingsSchema = z.object({
   phone: z.string().optional(),
@@ -9,48 +11,24 @@ const settingsSchema = z.object({
   accentColor: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
-    const accountId = request.headers.get('X-Account-Id')
-    
-    if (!accountId) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
+    const accountId = requireAccountId(request)
     const body = await request.json()
     const validated = settingsSchema.parse(body)
     
     const account = await updateAccountSettings(accountId, validated)
     
-    const { passwordHash, ...accountWithoutPassword } = account
-    
-    return NextResponse.json({
-      success: true,
-      account: accountWithoutPassword,
-    })
+    return okResponse({ account: sanitizeAccount(account) })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0].message },
-        { status: 400 }
-      )
+    const zodError = handleZodError(error)
+    if (zodError) return zodError
+    
+    if (error instanceof Error && error.message === 'Account ID required') {
+      return unauthorizedError()
     }
-
-    if (error instanceof Error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
-    }
-
-    console.error('Update settings error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to update settings' },
-      { status: 500 }
-    )
+    
+    return handleApiError(error)
   }
 }
 

@@ -1,5 +1,4 @@
-import Button from '@/components/Button'
-import FilingIQLogo from '@/components/FilingIQLogo'
+import { Button, FilingIQLogo } from '@/components'
 
 export default function Home() {
   return (
@@ -34,11 +33,11 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="pt-6 space-x-4">
-            <Button href="/signup" variant="primary" className="text-lg px-8 py-4">
+          <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Button href="/signup" variant="primary" className="text-lg px-8 py-4 w-full sm:w-auto">
               Get Started Free
             </Button>
-            <Button href="/demo" variant="secondary" className="text-lg px-8 py-4">
+            <Button href="/demo" variant="secondary" className="text-lg px-8 py-4 w-full sm:w-auto">
               See Demo
             </Button>
           </div>

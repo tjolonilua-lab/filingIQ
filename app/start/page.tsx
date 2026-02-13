@@ -4,10 +4,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import FormStep from '@/components/FormStep'
-import FileUpload from '@/components/FileUpload'
-import Button from '@/components/Button'
-import StrategyInsights from '@/components/StrategyInsights'
+import { FormStep, FileUpload, Button, StrategyInsights } from '@/components'
 import {
   contactInfoSchema,
   filingInfoSchema,
@@ -79,7 +76,9 @@ export default function StartPage() {
             })
           }
         })
-        .catch(err => console.error('Error loading company branding:', err))
+        .catch((err: Error) => {
+          // Error loading branding - non-critical, continue without it
+        })
     }
   }, [])
 
@@ -190,7 +189,7 @@ export default function StartPage() {
       const data = await response.json()
       setAnalysisResults(data.results || [])
     } catch (error) {
-      console.error('Analysis error:', error)
+      // Analysis error - non-critical, user can still submit
       setAnalysisResults(
         files.map((file) => ({
           filename: file.name,

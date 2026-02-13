@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { hashPassword } from '@/lib/accounts'
 import {
   validatePasswordResetTokenDB,
@@ -6,10 +6,12 @@ import {
   updateAccountPasswordDB,
 } from '@/lib/db'
 import { z } from 'zod'
+import { handleApiError, handleZodError, okResponse, validationError } from '@/lib/api'
+import { API_MESSAGES, MIN_PASSWORD_LENGTH } from '@/lib/constants'
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`),
 })
 
 export async function POST(request: NextRequest) {
@@ -23,10 +25,7 @@ export async function POST(request: NextRequest) {
     const tokenData = await validatePasswordResetTokenDB(validated.token)
     
     if (!tokenData) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid or expired reset token' },
-        { status: 400 }
-      )
+      return validationError(API_MESSAGES.PASSWORD_RESET_INVALID)
     }
     
     // Hash new password
@@ -38,22 +37,11 @@ export async function POST(request: NextRequest) {
     // Mark token as used
     await markPasswordResetTokenUsedDB(validated.token)
     
-    return NextResponse.json({
-      success: true,
-      message: 'Password has been reset successfully',
-    })
+    return okResponse({}, API_MESSAGES.PASSWORD_RESET_SUCCESS)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0].message },
-        { status: 400 }
-      )
-    }
-
-    console.error('Reset password error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to reset password' },
-      { status: 500 }
-    )
+    const zodError = handleZodError(error)
+    if (zodError) return zodError
+    
+    return handleApiError(error)
   }
 }

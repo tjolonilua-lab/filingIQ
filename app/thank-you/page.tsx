@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import Button from '@/components/Button'
+import { Button } from '@/components'
 import { getBusinessBranding } from '@/lib/branding'
 
 function ThankYouContent() {
@@ -34,7 +34,7 @@ function ThankYouContent() {
           }
         })
         .catch(err => {
-          console.error('Error loading company branding:', err)
+          // Error loading branding - non-critical
           // Keep default branding on error
         })
     }

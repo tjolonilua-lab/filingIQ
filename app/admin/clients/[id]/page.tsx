@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import FilingIQLogo from '@/components/FilingIQLogo'
-import AIInsightsPanel from '@/components/AIInsightsPanel'
-import MetricsPanel from '@/components/MetricsPanel'
-import HolographicPanel from '@/components/HolographicPanel'
+import { FilingIQLogo, AIInsightsPanel, MetricsPanel, HolographicPanel } from '@/components'
 import type { IntakeSubmission } from '@/lib/validation'
 
 export default function ClientDetailPage() {
@@ -47,7 +44,7 @@ export default function ClientDetailPage() {
         }
       }
     } catch (error) {
-      console.error('Error fetching client:', error)
+      // Error fetching client - handled by error state
       setError('Failed to load client')
     } finally {
       setLoading(false)
@@ -108,7 +105,7 @@ export default function ClientDetailPage() {
         alert('Failed to download file. Please try again.')
       }
     } catch (error) {
-      console.error('Download error:', error)
+      // Download error - user sees alert
       alert('Failed to download file. Please try again.')
     }
   }

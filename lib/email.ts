@@ -1,9 +1,26 @@
 import { Resend } from 'resend'
 import type { IntakeSubmission } from './validation'
 import { getBusinessBranding } from './branding'
+import { logger } from './logger'
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
+/**
+ * Send intake submission email notification
+ * 
+ * Sends an email notification when a new tax intake submission is received.
+ * Uses Resend if configured, otherwise logs to console (development).
+ * 
+ * @param intake - The intake submission data
+ * @param fileLinks - Array of file URLs/paths to include in email
+ * @param analysisSummary - Optional AI analysis summary to include
+ * @returns Promise that resolves when email is sent or logged
+ * 
+ * @example
+ * ```typescript
+ * await sendIntakeEmail(intake, fileLinks, analysisSummary)
+ * ```
+ */
 export async function sendIntakeEmail(
   intake: IntakeSubmission,
   fileLinks: string[],
@@ -24,24 +41,21 @@ export async function sendIntakeEmail(
         subject: `New Tax Intake Submission - ${intake.contactInfo.fullName}`,
         html: emailContent,
       })
-      console.log('✅ Intake email sent via Resend')
+      logger.info('Intake email sent via Resend', { to: toEmail, from: fromEmail })
       return
     } catch (error) {
-      console.error('❌ Resend email failed:', error)
-      // Fall through to console logging
+      logger.error('Resend email failed', error as Error, { to: toEmail })
+      // Fall through to logger
     }
   }
 
-  // Fallback: log to console
-  console.log('\n' + '='.repeat(80))
-  console.log('📧 NEW INTAKE SUBMISSION - EMAIL NOTIFICATION')
-  console.log('='.repeat(80))
-  console.log(`To: ${toEmail}`)
-  console.log(`From: ${fromEmail}`)
-  console.log(`Subject: New Tax Intake Submission - ${intake.contactInfo.fullName}`)
-  console.log('\n--- Email Content ---\n')
-  console.log(emailContent)
-  console.log('\n' + '='.repeat(80) + '\n')
+  // Fallback: log to logger (for development/testing)
+  logger.info('NEW INTAKE SUBMISSION - EMAIL NOTIFICATION', {
+    to: toEmail,
+    from: fromEmail,
+    subject: `New Tax Intake Submission - ${intake.contactInfo.fullName}`,
+    content: emailContent,
+  })
 }
 
 function formatEmailContent(intake: IntakeSubmission, fileLinks: string[], analysisSummary?: string | null): string {
@@ -113,6 +127,22 @@ function formatEmailContent(intake: IntakeSubmission, fileLinks: string[], analy
   `
 }
 
+/**
+ * Send password reset email
+ * 
+ * Sends a password reset email with a secure token link. Uses Resend
+ * if configured, otherwise logs to console (development).
+ * 
+ * @param email - The recipient email address
+ * @param companyName - The company name for personalization
+ * @param token - The password reset token
+ * @returns Promise that resolves when email is sent or logged
+ * 
+ * @example
+ * ```typescript
+ * await sendPasswordResetEmail(userEmail, companyName, resetToken)
+ * ```
+ */
 export async function sendPasswordResetEmail(
   email: string,
   companyName: string,
@@ -134,25 +164,22 @@ export async function sendPasswordResetEmail(
         subject: 'Reset Your FilingIQ Password',
         html: emailContent,
       })
-      console.log('✅ Password reset email sent via Resend')
+      logger.info('Password reset email sent via Resend', { to: email, from: fromEmail })
       return
     } catch (error) {
-      console.error('❌ Resend email failed:', error)
-      // Fall through to console logging
+      logger.error('Resend email failed', error as Error, { to: email })
+      // Fall through to logger
     }
   }
 
-  // Fallback: log to console
-  console.log('\n' + '='.repeat(80))
-  console.log('📧 PASSWORD RESET EMAIL')
-  console.log('='.repeat(80))
-  console.log(`To: ${email}`)
-  console.log(`From: ${fromEmail}`)
-  console.log(`Subject: Reset Your FilingIQ Password`)
-  console.log('\n--- Email Content ---\n')
-  console.log(emailContent)
-  console.log(`\nReset URL: ${resetUrl}`)
-  console.log('\n' + '='.repeat(80) + '\n')
+  // Fallback: log to logger (for development/testing)
+  logger.info('PASSWORD RESET EMAIL', {
+    to: email,
+    from: fromEmail,
+    subject: 'Reset Your FilingIQ Password',
+    resetUrl,
+    content: emailContent,
+  })
 }
 
 function formatPasswordResetEmailContent(companyName: string, resetUrl: string): string {
