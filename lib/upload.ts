@@ -85,30 +85,23 @@ export async function storeUpload(
     })
   }
 
-  // Fallback to local storage
-  // Note: On Vercel, local storage won't persist. S3 should be configured for production.
-  const uploadsDir = join(process.cwd(), 'uploads')
-  try {
-    await mkdir(uploadsDir, { recursive: true })
-  } catch (error) {
-    // Directory might already exist or filesystem is read-only (Vercel)
-    console.warn('Could not create uploads directory:', error)
-  }
-
-  try {
-    const filePath = join(uploadsDir, filename)
-    await writeFile(filePath, buffer)
-    return { urlOrPath: `/uploads/${filename}` }
-  } catch (error: any) {
-    // If local storage fails (e.g., on Vercel), throw error to indicate S3 is required
-    console.error('Local file storage failed. S3 must be configured for production:', error)
+  // Don't fall back to local storage on Vercel (filesystem is read-only)
+  // If we get here, S3 is not configured or failed
+  if (!s3Client || !process.env.AWS_S3_BUCKET) {
+    const missing = []
+    if (!process.env.AWS_ACCESS_KEY_ID) missing.push('AWS_ACCESS_KEY_ID')
+    if (!process.env.AWS_SECRET_ACCESS_KEY) missing.push('AWS_SECRET_ACCESS_KEY')
+    if (!process.env.AWS_S3_BUCKET) missing.push('AWS_S3_BUCKET')
+    if (!process.env.AWS_REGION) missing.push('AWS_REGION')
     
-    // Provide a more user-friendly error message
-    if (error.code === 'EPERM' || error.code === 'EROFS' || error.message?.includes('read-only')) {
-      throw new Error('File upload is not configured. Please contact support or configure AWS S3 storage.')
-    }
-    
-    throw new Error(`Failed to save file: ${error.message || 'Unknown error'}`)
+    throw new Error(
+      `AWS S3 is not configured. Missing environment variables: ${missing.join(', ')}. ` +
+      `Please add these to your Vercel project settings.`
+    )
   }
+  
+  // If S3 client exists but upload failed, we already threw an error above
+  // This should never be reached, but just in case:
+  throw new Error('File upload failed. S3 configuration may be incorrect. Check Vercel function logs for details.')
 }
 
