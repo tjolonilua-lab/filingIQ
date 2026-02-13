@@ -28,8 +28,20 @@ export async function GET(request: NextRequest) {
 
     const dataDir = join(process.cwd(), 'data', 'intakes')
     
-    // Read all JSON files
-    const files = await readdir(dataDir)
+    // Read all JSON files (handle case where directory doesn't exist)
+    let files: string[] = []
+    try {
+      files = await readdir(dataDir)
+    } catch (error) {
+      // Directory doesn't exist (common on Vercel if no submissions yet)
+      // Return empty array instead of error
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        submissions: [],
+      })
+    }
+    
     const jsonFiles = files.filter(f => f.endsWith('.json'))
 
     const submissions: Array<IntakeSubmission & { id: string; accountId?: string }> = []
