@@ -16,6 +16,7 @@ import {
   deleteAccountDB,
   deleteAccountByEmailDB,
   deleteAllAccountsDB,
+  updatePasswordByEmailDB,
 } from './db'
 import type { CompanyAccount } from './types/account'
 
