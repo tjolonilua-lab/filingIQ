@@ -16,7 +16,6 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
   const [activeStepIndex, setActiveStepIndex] = useState<number | null>(null)
   const [editingField, setEditingField] = useState<{ stepIndex: number; fieldIndex: number } | null>(null)
   const [useCustomForm, setUseCustomForm] = useState(false)
-  const [hasCustomConfig, setHasCustomConfig] = useState(false)
 
   // Load form configuration
   useEffect(() => {
@@ -35,7 +34,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
           if (data.success && data.config) {
             // Check if this is a custom config (not the default)
             const isDefault = JSON.stringify(data.config) === JSON.stringify(defaultFormConfig)
-            setHasCustomConfig(!isDefault)
+            // Track if custom config exists
             setUseCustomForm(!isDefault)
             setConfig(data.config)
           }
@@ -68,7 +67,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
         const data = await response.json()
         if (data.success) {
           setConfig(defaultFormConfig)
-          setHasCustomConfig(false)
+          // Reset to default config
           showToast('Using default form configuration', 'success')
         } else {
           throw new Error(data.error || 'Failed to save')
@@ -102,7 +101,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
       
       const data = await response.json()
       if (data.success) {
-        setHasCustomConfig(true)
+        // Custom config saved
         showToast('Custom form configuration saved successfully!', 'success')
       } else {
         throw new Error(data.error || 'Failed to save')

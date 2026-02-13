@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import type { IntakeSubmission } from '@/lib/validation'
 
 interface ClientsViewProps {
@@ -8,7 +9,6 @@ interface ClientsViewProps {
 }
 
 export default function ClientsView({ submissions, loading }: ClientsViewProps) {
-  const router = useRouter()
 
   if (loading) {
     return (
