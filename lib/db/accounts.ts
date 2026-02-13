@@ -1,5 +1,5 @@
 import { sql } from './client'
-import type { CompanyAccount } from '../accounts'
+import type { CompanyAccount } from '../types/account'
 import { RESERVED_SLUGS } from '../constants'
 import { logger } from '../logger'
 import { mapAccountRow, isAccountRow } from '../types/db'

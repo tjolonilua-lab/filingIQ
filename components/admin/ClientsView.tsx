@@ -8,6 +8,7 @@ interface ClientsViewProps {
 }
 
 export default function ClientsView({ submissions, loading }: ClientsViewProps) {
+  const router = useRouter()
 
   if (loading) {
     return (

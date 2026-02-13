@@ -16,6 +16,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
   const [activeStepIndex, setActiveStepIndex] = useState<number | null>(null)
   const [editingField, setEditingField] = useState<{ stepIndex: number; fieldIndex: number } | null>(null)
   const [useCustomForm, setUseCustomForm] = useState(false)
+  const [hasCustomConfig, setHasCustomConfig] = useState(false)
 
   // Load form configuration
   useEffect(() => {

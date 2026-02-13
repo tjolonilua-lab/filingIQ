@@ -115,6 +115,7 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
       return () => clearTimeout(timer)
     } else {
       setSlugAvailable(null)
+      return undefined
     }
   }, [settings.slug, accountId])
 

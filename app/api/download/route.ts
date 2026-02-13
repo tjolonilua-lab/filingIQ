@@ -106,7 +106,9 @@ export async function GET(request: NextRequest) {
       )
     }
   } catch (error) {
-    logger.error('Download error', error as Error, { path, filename })
+    const errorPath = request.nextUrl.searchParams.get('path') || 'unknown'
+    const errorFilename = request.nextUrl.searchParams.get('filename') || 'unknown'
+    logger.error('Download error', error as Error, { path: errorPath, filename: errorFilename })
     return NextResponse.json(
       { success: false, error: 'Failed to download file' },
       { status: 500 }

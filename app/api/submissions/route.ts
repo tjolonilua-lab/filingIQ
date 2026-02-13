@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
       submissions,
     })
   } catch (error) {
-    logger.error('Error fetching submissions', error as Error, { accountId })
+    const errorAccountId = request.headers.get('X-Account-Id') || 'unknown'
+    logger.error('Error fetching submissions', error as Error, { accountId: errorAccountId })
     return serverError('Failed to fetch submissions')
   }
 }

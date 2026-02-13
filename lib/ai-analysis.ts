@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import type { DocumentAnalysis } from '@/lib/validation'
 import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { logger } from './logger'
 import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './constants'
 

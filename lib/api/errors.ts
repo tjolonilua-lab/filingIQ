@@ -19,15 +19,17 @@ export function createErrorResponse(
   code?: string,
   details?: unknown
 ): NextResponse<ApiError> {
-  return NextResponse.json(
-    {
-      success: false,
-      error: message,
-      ...(code && { code }),
-      ...(details && { details }),
-    },
-    { status }
-  )
+  const response: ApiError = {
+    success: false,
+    error: message,
+  }
+  if (code) {
+    response.code = code
+  }
+  if (details !== undefined) {
+    response.details = details
+  }
+  return NextResponse.json(response, { status })
 }
 
 export function validationError(error: string): NextResponse<ApiError> {
