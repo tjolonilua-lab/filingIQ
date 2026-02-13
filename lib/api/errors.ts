@@ -96,8 +96,11 @@ export function handleZodError(error: unknown): NextResponse<ApiError> | null {
   // Dynamic import to avoid issues
   const { ZodError } = require('zod')
   
-  if (error instanceof ZodError) {
-    return validationError(error.errors[0].message)
+  if (error && typeof error === 'object' && error instanceof ZodError) {
+    const zodError = error as { errors: Array<{ message: string }> }
+    if (zodError.errors && zodError.errors.length > 0) {
+      return validationError(zodError.errors[0].message)
+    }
   }
   
   return null
