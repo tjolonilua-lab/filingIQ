@@ -235,10 +235,13 @@ export async function createAccount(data: {
       const createdAt = new Date().toISOString()
       const passwordHash = await hashPassword(data.password)
       
+      // Normalize email to lowercase for consistency
+      const normalizedEmail = data.email.toLowerCase().trim()
+      
       return await createAccountDB({
         id: accountId,
         companyName: data.companyName,
-        email: data.email,
+        email: normalizedEmail,
         passwordHash: passwordHash,
         website: data.website,
         slug: finalSlug,
@@ -257,8 +260,11 @@ export async function createAccount(data: {
   // Fallback to file system
   const accounts = await loadAccounts()
   
+  // Normalize email to lowercase for consistency
+  const normalizedEmail = data.email.toLowerCase().trim()
+  
   // Double-check if email already exists (shouldn't happen due to check above, but safety check)
-  if (accounts.some(acc => acc.email === data.email)) {
+  if (accounts.some(acc => acc.email.toLowerCase() === normalizedEmail)) {
     throw new Error('Email already registered')
   }
 
@@ -278,7 +284,7 @@ export async function createAccount(data: {
   const account: CompanyAccount = {
     id: crypto.randomUUID(),
     companyName: data.companyName,
-    email: data.email,
+    email: normalizedEmail,
     passwordHash: passwordHash,
     website: data.website,
     slug: finalSlug,

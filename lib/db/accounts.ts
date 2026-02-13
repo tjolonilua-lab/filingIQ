@@ -46,6 +46,9 @@ export async function findAccountByEmailDB(email: string): Promise<CompanyAccoun
   }
   
   try {
+    // Normalize email to lowercase for case-insensitive lookup
+    const normalizedEmail = email.toLowerCase().trim()
+    
     const result = await sql`
       SELECT 
         id::text,
@@ -57,7 +60,7 @@ export async function findAccountByEmailDB(email: string): Promise<CompanyAccoun
         created_at::text as "createdAt",
         settings
       FROM accounts
-      WHERE email = ${email}
+      WHERE LOWER(email) = LOWER(${normalizedEmail})
       LIMIT 1
     `
     
@@ -215,6 +218,9 @@ export async function createAccountDB(data: {
   }
   
   try {
+    // Normalize email to lowercase for consistency
+    const normalizedEmail = data.email.toLowerCase().trim()
+    
     await sql`
       INSERT INTO accounts (
         id,
@@ -228,7 +234,7 @@ export async function createAccountDB(data: {
       ) VALUES (
         ${data.id}::uuid,
         ${data.companyName},
-        ${data.email},
+        ${normalizedEmail},
         ${data.passwordHash},
         ${data.website},
         ${data.slug},
@@ -240,7 +246,7 @@ export async function createAccountDB(data: {
     return {
       id: data.id,
       companyName: data.companyName,
-      email: data.email,
+      email: normalizedEmail,
       passwordHash: data.passwordHash,
       website: data.website,
       slug: data.slug,
@@ -328,7 +334,9 @@ export async function updatePasswordByEmailDB(email: string, passwordHash: strin
   }
   
   try {
-    const result = await sql`UPDATE accounts SET password_hash = ${passwordHash} WHERE email = ${email} RETURNING id`
+    // Normalize email to lowercase for case-insensitive lookup
+    const normalizedEmail = email.toLowerCase().trim()
+    const result = await sql`UPDATE accounts SET password_hash = ${passwordHash} WHERE LOWER(email) = LOWER(${normalizedEmail}) RETURNING id`
     return (result as unknown[]).length > 0
   } catch (error) {
     logger.error('Error updating password by email', error as Error, { email })
@@ -409,7 +417,9 @@ export async function deleteAccountByEmailDB(email: string): Promise<boolean> {
   }
   
   try {
-    const result = await sql`DELETE FROM accounts WHERE email = ${email} RETURNING id`
+    // Normalize email to lowercase for case-insensitive lookup
+    const normalizedEmail = email.toLowerCase().trim()
+    const result = await sql`DELETE FROM accounts WHERE LOWER(email) = LOWER(${normalizedEmail}) RETURNING id`
     return (result as unknown[]).length > 0
   } catch (error) {
     logger.error('Error deleting account by email', error as Error, { email })

@@ -37,6 +37,13 @@ export async function POST(request: NextRequest) {
     // Mark token as used
     await markPasswordResetTokenUsedDB(validated.token)
     
+    // Log successful password reset for debugging
+    const { logger } = await import('@/lib/logger')
+    logger.info('Password reset completed successfully', { 
+      accountId: tokenData.accountId,
+      passwordLength: validated.password.length 
+    })
+    
     return okResponse({}, API_MESSAGES.PASSWORD_RESET_SUCCESS)
   } catch (error) {
     const zodError = handleZodError(error)
