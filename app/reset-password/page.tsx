@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import FilingIQLogo from '@/components/FilingIQLogo'
 import HolographicPanel from '@/components/HolographicPanel'
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [token, setToken] = useState('')
@@ -177,5 +177,29 @@ export default function ResetPasswordPage() {
         </HolographicPanel>
       </div>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-filingiq-dark flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            <div className="flex justify-center mb-8">
+              <FilingIQLogo size="lg" showTagline={true} />
+            </div>
+            <HolographicPanel glowColor="cyan">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-2 border-filingiq-cyan/30 border-t-filingiq-cyan mx-auto"></div>
+                <p className="mt-4 text-gray-400">Loading...</p>
+              </div>
+            </HolographicPanel>
+          </div>
+        </main>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   )
 }
