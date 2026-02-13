@@ -13,31 +13,57 @@ export default function SignupPage() {
   })
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false)
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Auto-generate slug from company name
-  useEffect(() => {
-    if (formData.companyName && !formData.slug) {
-      let generated = formData.companyName
+  // Generate slug from company name
+  const generateSlugFromCompanyName = (companyName: string): string => {
+    if (!companyName) return ''
+    
+    // Convert to lowercase and replace non-alphanumeric with hyphens
+    let slug = companyName
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-') // Replace any sequence of non-alphanumeric with single hyphen
+      .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+      .substring(0, 50) // Limit length
+    
+    // Ensure minimum length - if too short, try to extract meaningful parts
+    if (slug.length < 2) {
+      // Try extracting first letters of words
+      const words = companyName
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .substring(0, 50)
+        .trim()
+        .split(/[^a-z0-9]+/)
+        .filter(w => w.length > 0)
       
-      // Ensure minimum length - if too short, add a suffix
-      if (generated.length < 2) {
-        generated = generated || 'company'
-        // If still too short after cleaning, use a default
-        if (generated.length < 2) {
-          generated = 'company-' + Date.now().toString().slice(-4)
+      if (words.length > 0) {
+        // Use first letters of words
+        slug = words.map(w => w[0]).join('')
+        // If still too short, use first word
+        if (slug.length < 2 && words[0]) {
+          slug = words[0].substring(0, 50)
         }
       }
       
+      // Final fallback if still too short
+      if (slug.length < 2) {
+        slug = 'company-' + Date.now().toString().slice(-4)
+      }
+    }
+    
+    return slug
+  }
+
+  // Auto-generate slug from company name as user types (unless manually edited)
+  useEffect(() => {
+    if (formData.companyName && !isSlugManuallyEdited) {
+      const generated = generateSlugFromCompanyName(formData.companyName)
       setFormData(prev => ({ ...prev, slug: generated }))
     }
-  }, [formData.companyName])
+  }, [formData.companyName, isSlugManuallyEdited])
 
   // Check slug availability
   const checkSlug = async (slug: string) => {
@@ -224,7 +250,17 @@ export default function SignupPage() {
                   value={formData.slug}
                   onChange={(e) => {
                     const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                    setIsSlugManuallyEdited(true) // Mark as manually edited
                     setFormData({ ...formData, slug: value })
+                  }}
+                  onFocus={() => {
+                    // If slug is empty or very short, generate from company name
+                    if (!formData.slug || formData.slug.length < 2) {
+                      const generated = generateSlugFromCompanyName(formData.companyName)
+                      if (generated) {
+                        setFormData(prev => ({ ...prev, slug: generated }))
+                      }
+                    }
                   }}
                   className="w-full pl-[180px] pr-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
                   placeholder="your-company"
