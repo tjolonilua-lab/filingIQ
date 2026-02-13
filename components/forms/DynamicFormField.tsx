@@ -1,6 +1,6 @@
 'use client'
 
-import { FormField, FieldType } from '@/lib/form-config'
+import { FormField } from '@/lib/form-config'
 import { UseFormRegister, FieldErrors, UseFormWatch, UseFormSetValue } from 'react-hook-form'
 
 interface DynamicFormFieldProps {

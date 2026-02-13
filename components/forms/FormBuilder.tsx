@@ -16,7 +16,6 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
   const [activeStepIndex, setActiveStepIndex] = useState<number | null>(null)
   const [editingField, setEditingField] = useState<{ stepIndex: number; fieldIndex: number } | null>(null)
   const [useCustomForm, setUseCustomForm] = useState(false)
-  const [hasCustomConfig, setHasCustomConfig] = useState(false)
 
   // Load form configuration
   useEffect(() => {
@@ -420,7 +419,7 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/60 p-6">
           <h3 className="text-md font-semibold text-gray-900 mb-4">Default Form Preview</h3>
           <div className="space-y-4">
-            {defaultFormConfig.steps.map((step, idx) => (
+            {defaultFormConfig.steps.map((step) => (
               <div key={step.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center space-x-2 mb-2">
                   <span className="text-sm font-medium text-gray-500">Step {step.order}</span>

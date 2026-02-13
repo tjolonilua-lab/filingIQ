@@ -1,7 +1,6 @@
 import { sql } from './client'
 import type { IntakeSubmission } from '../validation'
 import { logger } from '../logger'
-import type { SubmissionRow } from '../types/db'
 import { mapSubmissionRow, isSubmissionRow } from '../types/db'
 
 /**

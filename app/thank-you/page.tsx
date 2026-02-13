@@ -33,7 +33,7 @@ function ThankYouContent() {
             })
           }
         })
-        .catch(err => {
+        .catch(_err => {
           // Error loading branding - non-critical
           // Keep default branding on error
         })

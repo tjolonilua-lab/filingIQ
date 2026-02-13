@@ -14,6 +14,7 @@ class ClientLogger {
     }
 
     const timestamp = new Date().toISOString()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const logEntry = {
       level,
       message,

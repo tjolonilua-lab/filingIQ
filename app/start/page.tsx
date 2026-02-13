@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { FormStep, FileUpload, Button, StrategyInsights } from '@/components'
+import { FormStep, FileUpload, StrategyInsights } from '@/components'
 import {
   contactInfoSchema,
   filingInfoSchema,
@@ -76,7 +76,7 @@ export default function StartPage() {
             })
           }
         })
-        .catch((err: Error) => {
+        .catch((_err: Error) => {
           // Error loading branding - non-critical, continue without it
         })
     }
@@ -256,7 +256,6 @@ export default function StartPage() {
   }
 
   const primaryColor = companyBranding?.primaryColor || '#00A3FF'
-  const accentColor = companyBranding?.accentColor || '#00D4FF'
   const companyName = companyBranding?.companyName
 
   return (

@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import type { DocumentAnalysis } from '@/lib/validation'
 import { readFile } from 'fs/promises'
-import { join } from 'path'
 import { logger } from './logger'
+import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './constants'
 
 // DocumentAnalysis type is imported from validation
 
@@ -136,7 +136,7 @@ export async function analyzeDocument(
  */
 function parseAnalysisResponse(
   responseText: string,
-  filename: string
+  _filename: string
 ): DocumentAnalysis {
   // Try to extract JSON from the response
   let parsed: any = null

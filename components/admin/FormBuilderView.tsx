@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getBusinessBranding } from '@/lib/branding'
 import { useToast } from '@/components/ui/Toast'
 import Toast from '@/components/ui/Toast'
 import FormBuilder from '@/components/forms/FormBuilder'
@@ -11,7 +10,6 @@ interface FormBuilderViewProps {
 }
 
 export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
-  const branding = getBusinessBranding()
   const { toasts, showToast, removeToast } = useToast()
   const [settings, setSettings] = useState({
     slug: '',

@@ -35,7 +35,7 @@ export async function createSession(accountId: string): Promise<void> {
     .setExpirationTime(`${SESSION_DURATION_DAYS}d`)
     .sign(secret)
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   cookieStore.set('session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -64,7 +64,7 @@ export async function createSession(accountId: string): Promise<void> {
  * ```
  */
 export async function getSession(): Promise<string | null> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('session')?.value
   
   if (!token) {
@@ -94,7 +94,7 @@ export async function getSession(): Promise<string | null> {
  * ```
  */
 export async function destroySession(): Promise<void> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   cookieStore.delete('session')
   logger.info('Session destroyed')
 }

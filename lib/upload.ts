@@ -1,6 +1,5 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from './constants'
 import { logger } from './logger'
 

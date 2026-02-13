@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FilingIQLogo, Button, HolographicPanel } from '@/components'
+import { FilingIQLogo, HolographicPanel } from '@/components'
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({

@@ -2,7 +2,6 @@ import { sql } from './client'
 import type { CompanyAccount } from '../accounts'
 import { RESERVED_SLUGS } from '../constants'
 import { logger } from '../logger'
-import type { AccountRow } from '../types/db'
 import { mapAccountRow, isAccountRow } from '../types/db'
 
 /**
@@ -236,10 +235,11 @@ export async function createAccountDB(data: {
     }
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'code' in error && error.code === '23505') { // Unique constraint violation
-      if (error.constraint?.includes('email')) {
+      const errorMessage = (error as { message?: string }).message || ''
+      if (errorMessage.includes('email') || errorMessage.includes('accounts_email')) {
         throw new Error('Email already registered')
       }
-      if (error.constraint?.includes('slug')) {
+      if (errorMessage.includes('slug') || errorMessage.includes('accounts_slug')) {
         throw new Error('Slug already taken')
       }
     }
@@ -280,10 +280,11 @@ export async function updateAccountDB(
     return account
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'code' in error && error.code === '23505') { // Unique constraint violation
-      if (error.constraint?.includes('email')) {
+      const errorMessage = (error as { message?: string }).message || ''
+      if (errorMessage.includes('email') || errorMessage.includes('accounts_email')) {
         throw new Error('Email already in use')
       }
-      if (error.constraint?.includes('slug')) {
+      if (errorMessage.includes('slug') || errorMessage.includes('accounts_slug')) {
         throw new Error('Slug is not available')
       }
     }
@@ -319,7 +320,6 @@ export async function updateAccountSettingsDB(
       } else {
         newSettings.formConfig = settings.formConfig
       }
-      const { formConfig, ...restSettings } = settings
       // formConfig is handled separately above
     }
     
