@@ -54,9 +54,9 @@ const sentryOptions = {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
 
-  // Use environment variables or fallback to wizard values
-  org: process.env.SENTRY_ORG || "prolific-labs",
-  project: process.env.SENTRY_PROJECT || "javascript-nextjs",
+  // Use environment variables (required - no fallbacks to avoid errors)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
 
   // Suppresses source map uploading logs during build (unless in CI)
   silent: !process.env.CI,
@@ -69,6 +69,12 @@ const sentryOptions = {
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
   // side errors will fail.
   tunnelRoute: "/monitoring",
+
+  // Don't fail build if source map upload fails
+  errorHandler: (err, invokeErr, compilation) => {
+    // Log error but don't fail the build
+    console.warn('Sentry source map upload warning:', err.message)
+  },
 
   webpack: {
     // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
@@ -86,7 +92,11 @@ const sentryOptions = {
 }
 
 // Only wrap with Sentry if DSN is configured
-const shouldUseSentry = process.env.SENTRY_DSN && (process.env.SENTRY_ORG || sentryOptions.org) && (process.env.SENTRY_PROJECT || sentryOptions.project)
+// Also require org and project to be set (not using fallback values) to avoid upload errors
+// Only enable source map uploads if auth token is also configured
+const hasSentryConfig = process.env.SENTRY_DSN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+const hasSentryAuth = process.env.SENTRY_AUTH_TOKEN
+const shouldUseSentry = hasSentryConfig && hasSentryAuth
 
 module.exports = shouldUseSentry
   ? withSentryConfig(nextConfig, sentryOptions)

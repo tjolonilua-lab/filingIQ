@@ -24,11 +24,15 @@ type PostHog = {
   debug: () => void
 }
 let posthog: PostHog | null = null
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  posthog = require('posthog-js')
-} catch {
-  // PostHog not installed
+// Only try to load PostHog if we're in a client environment and it might be available
+if (typeof window !== 'undefined') {
+  try {
+    // Dynamic import to avoid build-time errors
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    posthog = require('posthog-js')
+  } catch {
+    // PostHog not installed - that's okay
+  }
 }
 
 // Mixpanel integration
@@ -41,11 +45,15 @@ type Mixpanel = {
   }
 }
 let mixpanel: Mixpanel | null = null
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  mixpanel = require('mixpanel-browser')
-} catch {
-  // Mixpanel not installed
+// Only try to load Mixpanel if we're in a client environment and it might be available
+if (typeof window !== 'undefined') {
+  try {
+    // Dynamic import to avoid build-time errors
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    mixpanel = require('mixpanel-browser')
+  } catch {
+    // Mixpanel not installed - that's okay
+  }
 }
 
 /**
