@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import type { IntakeSubmission } from '@/lib/validation'
+import { getSubmissionsByAccountDB, isDatabaseAvailable } from '@/lib/db'
 
 // Simple password-based auth (in production, use proper auth)
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123'
@@ -26,6 +27,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Try database first (preferred)
+    const dbAvailable = await isDatabaseAvailable()
+    if (dbAvailable) {
+      try {
+        const submissions = await getSubmissionsByAccountDB(accountId)
+        return NextResponse.json({
+          success: true,
+          count: submissions.length,
+          submissions,
+        })
+      } catch (error) {
+        console.error('Error fetching submissions from database:', error)
+        // Fall through to filesystem fallback
+      }
+    }
+
+    // Fallback to filesystem (for local development or if database fails)
     const dataDir = join(process.cwd(), 'data', 'intakes')
     
     // Read all JSON files (handle case where directory doesn't exist)

@@ -6,6 +6,7 @@ import { storeUpload } from '@/lib/upload'
 import { sendIntakeEmail } from '@/lib/email'
 import { analyzeDocuments, generateAnalysisSummary } from '@/lib/ai-analysis'
 import { isAIAnalysisEnabled } from '@/lib/business-config'
+import { createSubmissionDB, isDatabaseAvailable } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,19 +92,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Store intake data locally
+    // Store intake data in database (preferred) or filesystem (fallback)
     try {
-      const dataDir = join(process.cwd(), 'data', 'intakes')
-      await mkdir(dataDir, { recursive: true })
+      const dbAvailable = await isDatabaseAvailable()
+      if (dbAvailable) {
+        await createSubmissionDB(accountId || null, intake)
+        console.log('✅ Submission saved to database')
+      } else {
+        // Fallback to local filesystem (for local development)
+        const dataDir = join(process.cwd(), 'data', 'intakes')
+        await mkdir(dataDir, { recursive: true })
 
-      const timestamp = Date.now()
-      const filename = `${timestamp}-${contactInfo.fullName.replace(/[^a-zA-Z0-9]/g, '_')}.json`
-      const filePath = join(dataDir, filename)
+        const timestamp = Date.now()
+        const filename = `${timestamp}-${contactInfo.fullName.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+        const filePath = join(dataDir, filename)
 
-      await writeFile(filePath, JSON.stringify(intake, null, 2), 'utf-8')
+        await writeFile(filePath, JSON.stringify(intake, null, 2), 'utf-8')
+        console.log('✅ Submission saved to filesystem (database not available)')
+      }
     } catch (error) {
       console.error('Failed to save intake data:', error)
-      // Continue even if file save fails
+      // Continue even if save fails - email can still be sent
     }
 
     // Send email notification

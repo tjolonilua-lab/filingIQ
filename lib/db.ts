@@ -40,6 +40,28 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_accounts_slug ON accounts(slug)
     `
     
+    // Create submissions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS submissions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
+        contact_info JSONB NOT NULL,
+        filing_info JSONB NOT NULL,
+        income_info JSONB NOT NULL,
+        documents JSONB NOT NULL,
+        submitted_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
+    
+    // Create indexes for submissions
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_submissions_account_id ON submissions(account_id)
+    `
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at DESC)
+    `
+    
     console.log('Database initialized successfully')
   } catch (error) {
     console.error('Database initialization error:', error)
@@ -467,5 +489,80 @@ export async function isDatabaseAvailable(): Promise<boolean> {
     return true
   } catch (error) {
     return false
+  }
+}
+
+// Submissions functions
+import type { IntakeSubmission } from './validation'
+
+export async function createSubmissionDB(
+  accountId: string | null,
+  submission: IntakeSubmission
+): Promise<string> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    const result = await sql`
+      INSERT INTO submissions (
+        account_id,
+        contact_info,
+        filing_info,
+        income_info,
+        documents,
+        submitted_at
+      ) VALUES (
+        ${accountId ? accountId : null}::uuid,
+        ${JSON.stringify(submission.contactInfo)}::jsonb,
+        ${JSON.stringify(submission.filingInfo)}::jsonb,
+        ${JSON.stringify(submission.incomeInfo)}::jsonb,
+        ${JSON.stringify(submission.documents)}::jsonb,
+        ${submission.submittedAt}::timestamp
+      )
+      RETURNING id::text
+    `
+    
+    const rows = result as any[]
+    return rows[0].id
+  } catch (error) {
+    console.error('Error creating submission:', error)
+    throw error
+  }
+}
+
+export async function getSubmissionsByAccountDB(accountId: string): Promise<Array<IntakeSubmission & { id: string; accountId?: string }>> {
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
+  try {
+    const result = await sql`
+      SELECT 
+        id::text,
+        account_id::text as "accountId",
+        contact_info as "contactInfo",
+        filing_info as "filingInfo",
+        income_info as "incomeInfo",
+        documents,
+        submitted_at::text as "submittedAt"
+      FROM submissions
+      WHERE account_id = ${accountId}::uuid
+      ORDER BY submitted_at DESC
+    `
+    
+    const rows = result as any[]
+    return rows.map(row => ({
+      id: row.id,
+      accountId: row.accountId,
+      contactInfo: row.contactInfo,
+      filingInfo: row.filingInfo,
+      incomeInfo: row.incomeInfo,
+      documents: row.documents,
+      submittedAt: row.submittedAt,
+    })) as Array<IntakeSubmission & { id: string; accountId?: string }>
+  } catch (error) {
+    console.error('Error fetching submissions:', error)
+    throw error
   }
 }
