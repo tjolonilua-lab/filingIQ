@@ -84,9 +84,14 @@ export default function SignupPage() {
       
       const data = await response.json()
       
-      // Extract available from response (could be at top level or in data property)
-      const available = data.available ?? data.data?.available
-      setSlugAvailable(available === true)
+      // Extract available from response
+      // API returns: { success: true, available: boolean, slug: string }
+      if (data.success === true && typeof data.available === 'boolean') {
+        setSlugAvailable(data.available)
+      } else {
+        // If response format is unexpected, assume unavailable to be safe
+        setSlugAvailable(false)
+      }
     } catch (error) {
       // Error checking slug - non-critical, user can still proceed
       setSlugAvailable(null)
@@ -136,18 +141,18 @@ export default function SignupPage() {
 
       const data = await response.json()
 
-      if (data.success) {
+      if (data.success && data.account) {
         // Store account ID in localStorage for session management
         localStorage.setItem('account_id', data.account.id)
         localStorage.setItem('account_email', data.account.email)
         // Redirect to admin
         window.location.href = '/admin'
       } else {
-        // Extract user-friendly error message
+        // Extract user-friendly error message from API response
         let errorMessage = 'Failed to create account'
         
         if (data.error) {
-          // If error is a string, use it directly
+          // API returns { success: false, error: "message" }
           if (typeof data.error === 'string') {
             errorMessage = data.error
           } 
@@ -169,8 +174,10 @@ export default function SignupPage() {
         setError(errorMessage)
       }
     } catch (error) {
-      // Signup error handled by error state
-      setError('An error occurred. Please try again.')
+      // Network error or JSON parse error
+      console.error('Signup error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred. Please try again.'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
