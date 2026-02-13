@@ -68,17 +68,3 @@ export const POST = withRateLimit(
     }
   }
 )
-
-// Apply rate limiting (3 attempts per hour per email)
-export const POST = withRateLimit(
-  forgotPasswordHandler,
-  RATE_LIMITS.PASSWORD_RESET,
-  async (req) => {
-    try {
-      const body = await req.json()
-      return body?.email // Rate limit by email
-    } catch {
-      return undefined
-    }
-  }
-)

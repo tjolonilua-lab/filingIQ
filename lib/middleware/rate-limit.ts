@@ -137,7 +137,7 @@ function checkRateLimit(key: string, config: RateLimitConfig): { allowed: boolea
  * @example
  * ```typescript
  * export const POST = withRateLimit(
- *   async (req) => { /* handler */ },
+ *   async (req) => { // handler },
  *   RATE_LIMITS.LOGIN,
  *   (req) => req.body?.email // Rate limit by email
  * )

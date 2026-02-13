@@ -7,13 +7,6 @@ const nextConfig = {
       bodySizeLimit: '10mb',
     },
   },
-  // Request size limits
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-    responseLimit: '10mb',
-  },
   // Security headers
   async headers() {
     return [

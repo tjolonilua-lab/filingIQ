@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { getBusinessBranding } from '@/lib/branding'
-import { useToast } from './Toast'
-import Toast from './Toast'
-import FormBuilder from './FormBuilder'
+import { useToast } from '@/components/ui/Toast'
+import Toast from '@/components/ui/Toast'
+import FormBuilder from '@/components/forms/FormBuilder'
 
 interface FormBuilderViewProps {
   accountId: string | null

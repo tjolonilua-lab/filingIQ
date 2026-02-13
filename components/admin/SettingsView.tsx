@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { getBusinessBranding } from '@/lib/branding'
-import { useToast } from './Toast'
-import Toast from './Toast'
+import { useToast } from '@/components/ui/Toast'
+import Toast from '@/components/ui/Toast'
 
 interface SettingsViewProps {
   accountId: string | null

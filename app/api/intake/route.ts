@@ -59,9 +59,6 @@ export const POST = withCorrelationId(async (request: NextRequest, correlationId
       return validationError('Invalid income information format')
     }
     
-    // Check business-level configuration for AI analysis
-    const enableAIAnalysis = isAIAnalysisEnabled()
-
     // Handle file uploads
     const files = formData.getAll('files') as File[]
     const uploadedDocuments: DocumentWithAnalysis[] = []

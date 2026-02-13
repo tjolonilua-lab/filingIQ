@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FormConfiguration, FormStep, FormField, FieldType, defaultFormConfig, validateFormConfig } from '@/lib/form-config'
-import { useToast } from './Toast'
+import { useToast } from '@/components/ui/Toast'
 
 interface FormBuilderProps {
   accountId: string | null

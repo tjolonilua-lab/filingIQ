@@ -4,7 +4,7 @@ import { join } from 'path'
 import type { IntakeSubmission } from '@/lib/validation'
 import { getSubmissionsByAccountDB, isDatabaseAvailable } from '@/lib/db'
 import { verifyAdminAuth } from '@/lib/api/auth'
-import { unauthorizedError, serverError, okResponse } from '@/lib/api/response'
+import { unauthorizedError, serverError, okResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {

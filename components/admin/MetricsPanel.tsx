@@ -1,6 +1,6 @@
 'use client'
 
-import HolographicPanel from './HolographicPanel'
+import HolographicPanel from '@/components/ui/HolographicPanel'
 
 interface Metric {
   label: string
