@@ -4,7 +4,6 @@ import { join } from 'path'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { logger } from '@/lib/logger'
-import { validationError, serverError, notFoundError } from '@/lib/api'
 
 const s3Client = process.env.AWS_ACCESS_KEY_ID
   ? new S3Client({
