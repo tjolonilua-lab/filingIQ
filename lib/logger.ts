@@ -4,7 +4,7 @@
  * Replaces console.log/error/warn with structured logging that:
  * - Supports different log levels (debug, info, warn, error)
  * - Includes timestamps and context
- * - Can be extended to send to external services
+ * - Automatically sends errors to Sentry (if configured)
  * - Respects environment-based log levels
  * 
  * @example
@@ -13,6 +13,18 @@
  * logger.error('Database error', error, { query: 'SELECT * FROM users' })
  * ```
  */
+
+// Optional Sentry integration - only imports if available
+let Sentry: {
+  captureException: (error: Error, options?: { extra?: Record<string, unknown>; tags?: Record<string, string> }) => void
+  captureMessage: (message: string, options?: { level?: string; extra?: Record<string, unknown>; tags?: Record<string, string> }) => void
+} | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Sentry = require('@sentry/nextjs')
+} catch {
+  // Sentry not installed - that's okay, logger works without it
+}
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -52,6 +64,26 @@ class Logger {
     }
 
     const formatted = this.formatMessage(entry)
+
+    // Send to Sentry if available and configured
+    if (Sentry && (level === 'warn' || level === 'error')) {
+      try {
+        if (level === 'error' && error) {
+          Sentry.captureException(error, {
+            extra: context,
+            tags: { logLevel: level },
+          })
+        } else {
+          Sentry.captureMessage(message, {
+            level: level === 'warn' ? 'warning' : 'error',
+            extra: { ...context, error: error?.message },
+            tags: { logLevel: level },
+          })
+        }
+      } catch {
+        // Silently fail if Sentry has issues
+      }
+    }
 
     // Log to console with structured format
     switch (level) {

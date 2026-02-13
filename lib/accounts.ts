@@ -210,6 +210,13 @@ export async function createAccount(data: {
   website: string
   slug?: string // Optional custom slug
 }): Promise<CompanyAccount> {
+  // Check if email already exists BEFORE trying to create
+  // This prevents issues where account exists in filesystem but not in DB
+  const existingAccount = await findAccountByEmail(data.email)
+  if (existingAccount) {
+    throw new Error('Email already registered')
+  }
+
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
@@ -250,7 +257,7 @@ export async function createAccount(data: {
   // Fallback to file system
   const accounts = await loadAccounts()
   
-  // Check if email already exists
+  // Double-check if email already exists (shouldn't happen due to check above, but safety check)
   if (accounts.some(acc => acc.email === data.email)) {
     throw new Error('Email already registered')
   }
@@ -559,6 +566,7 @@ export async function deleteAccount(accountId: string): Promise<void> {
  * Delete account by email
  * 
  * Deletes an account by email address. Useful for clearing test accounts.
+ * Clears from both database AND filesystem to ensure complete removal.
  * 
  * @param email - The email address of the account to delete
  * @returns True if account was found and deleted, false otherwise
@@ -569,26 +577,35 @@ export async function deleteAccount(accountId: string): Promise<void> {
  * ```
  */
 export async function deleteAccountByEmail(email: string): Promise<boolean> {
+  let deletedFromDB = false
+  
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
-      return await deleteAccountByEmailDB(email)
+      deletedFromDB = await deleteAccountByEmailDB(email)
     } catch (error) {
-      logger.error('Error deleting account by email in database, falling back to file system', error as Error)
+      logger.error('Error deleting account by email in database', error as Error)
     }
   }
   
-  // Fallback to file system
-  const accounts = await loadAccounts()
-  const accountIndex = accounts.findIndex(acc => acc.email === email)
-  
-  if (accountIndex === -1) {
-    return false
+  // Also delete from file system (even if DB deletion succeeded)
+  // This ensures complete cleanup when accounts exist in both places
+  let deletedFromFS = false
+  try {
+    await ensureAccountsDir()
+    const accounts = await loadAccounts()
+    const accountIndex = accounts.findIndex(acc => acc.email.toLowerCase() === email.toLowerCase())
+    
+    if (accountIndex !== -1) {
+      accounts.splice(accountIndex, 1)
+      await saveAccounts(accounts)
+      deletedFromFS = true
+    }
+  } catch (error) {
+    logger.error('Error deleting account from file system', error as Error)
   }
   
-  accounts.splice(accountIndex, 1)
-  await saveAccounts(accounts)
-  return true
+  return deletedFromDB || deletedFromFS
 }
 
 /**
@@ -596,6 +613,7 @@ export async function deleteAccountByEmail(email: string): Promise<boolean> {
  * 
  * Deletes all accounts from the system. This is a destructive operation
  * and should only be used for development/testing purposes.
+ * Clears from both database AND filesystem to ensure complete removal.
  * 
  * @returns The number of accounts deleted
  * 
@@ -606,19 +624,27 @@ export async function deleteAccountByEmail(email: string): Promise<boolean> {
  * ```
  */
 export async function deleteAllAccounts(): Promise<number> {
+  let dbCount = 0
+  
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
-      return await deleteAllAccountsDB()
+      dbCount = await deleteAllAccountsDB()
     } catch (error) {
-      logger.error('Error deleting all accounts in database, falling back to file system', error as Error)
+      logger.error('Error deleting all accounts in database', error as Error)
     }
   }
   
-  // Fallback to file system
-  await ensureAccountsDir()
-  await fs.writeFile(ACCOUNTS_FILE, '[]', 'utf-8')
-  return 0 // Can't know count from file system without reading first
+  // Also clear file system (even if DB deletion succeeded)
+  // This ensures complete cleanup when accounts exist in both places
+  try {
+    await ensureAccountsDir()
+    await fs.writeFile(ACCOUNTS_FILE, '[]', 'utf-8')
+  } catch (error) {
+    logger.error('Error clearing accounts from file system', error as Error)
+  }
+  
+  return dbCount
 }
 
 /**

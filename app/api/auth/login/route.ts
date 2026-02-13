@@ -13,51 +13,53 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
-const loginHandler = withCorrelationId(async (request: NextRequest, correlationId: string) => {
+// Read body before middleware to avoid "Body has already been read" errors
+async function handleLogin(request: NextRequest): Promise<Response> {
+  // Read body immediately before any middleware processing
+  let body: unknown
   try {
-    const body = await request.json()
-    
-    // Validate input
-    const validated = loginSchema.parse(body)
-    
-    // Find account (do not auto-create - security best practice)
-    const account = await findAccountByEmail(validated.email)
-    
-    if (!account) {
-      // Don't reveal if account exists (prevent enumeration)
-      return unauthorizedError(API_MESSAGES.INVALID_CREDENTIALS)
-    }
-
-    // Verify password
-    if (!(await verifyPassword(validated.password, account.passwordHash))) {
-      return unauthorizedError(API_MESSAGES.INVALID_CREDENTIALS)
-    }
-
-    // Create secure session with httpOnly cookie
-    await createSession(account.id)
-
-    // Return account (without password hash)
-    return okResponse({ account: sanitizeAccount(account) })
+    body = await request.json()
   } catch (error) {
-    const zodError = handleZodError(error)
-    if (zodError) return zodError
-    
-    logger.error('Login error', error as Error, { correlationId })
-    return handleApiError(error)
+    return handleApiError(new Error('Invalid request body format'))
   }
-})
 
-// Apply rate limiting (5 attempts per 15 minutes per IP)
-export const POST = withRateLimit(
-  loginHandler,
-  RATE_LIMITS.LOGIN,
-  async (req) => {
+  // Now wrap with correlation ID and rate limiting
+  const loginHandler = withCorrelationId(async (_req: NextRequest, correlationId: string) => {
     try {
-      const body = await req.json()
-      return body?.email // Rate limit by email
-    } catch {
-      return undefined
+      // Validate input (body already parsed above)
+      const validated = loginSchema.parse(body)
+      
+      // Find account (do not auto-create - security best practice)
+      const account = await findAccountByEmail(validated.email)
+      
+      if (!account) {
+        // Don't reveal if account exists (prevent enumeration)
+        return unauthorizedError(API_MESSAGES.INVALID_CREDENTIALS)
+      }
+
+      // Verify password
+      if (!(await verifyPassword(validated.password, account.passwordHash))) {
+        return unauthorizedError(API_MESSAGES.INVALID_CREDENTIALS)
+      }
+
+      // Create secure session with httpOnly cookie
+      await createSession(account.id)
+
+      // Return account (without password hash)
+      return okResponse({ account: sanitizeAccount(account) })
+    } catch (error) {
+      const zodError = handleZodError(error)
+      if (zodError) return zodError
+      
+      logger.error('Login error', error as Error, { correlationId })
+      return handleApiError(error)
     }
-  }
-)
+  })
+
+  // Apply rate limiting (5 attempts per 15 minutes per IP)
+  // Note: Body is already read above, so rate limiter won't try to read it
+  return withRateLimit(loginHandler, RATE_LIMITS.LOGIN)(request)
+}
+
+export const POST = handleLogin
 

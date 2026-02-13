@@ -15,6 +15,7 @@
     "@aws-sdk/s3-request-presigner": "^3.989.0",
     "@hookform/resolvers": "^3.9.1",
     "@neondatabase/serverless": "^1.0.2",
+    "@sentry/nextjs": "^10.38.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "form-data": "^4.0.0",

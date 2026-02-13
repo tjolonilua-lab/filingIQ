@@ -1,0 +1,6 @@
+[auth]
+token=your_sentry_auth_token_here
+
+[defaults]
+org=your-org-name
+project=your-project-name

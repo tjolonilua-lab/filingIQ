@@ -17,3 +17,6 @@ export * from './intake'
 
 // Shared Components
 export * from './shared'
+
+// Analytics
+export { AnalyticsProvider } from './AnalyticsProvider'
