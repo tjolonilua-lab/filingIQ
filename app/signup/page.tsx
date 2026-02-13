@@ -20,11 +20,21 @@ export default function SignupPage() {
   // Auto-generate slug from company name
   useEffect(() => {
     if (formData.companyName && !formData.slug) {
-      const generated = formData.companyName
+      let generated = formData.companyName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .substring(0, 50)
+      
+      // Ensure minimum length - if too short, add a suffix
+      if (generated.length < 2) {
+        generated = generated || 'company'
+        // If still too short after cleaning, use a default
+        if (generated.length < 2) {
+          generated = 'company-' + Date.now().toString().slice(-4)
+        }
+      }
+      
       setFormData(prev => ({ ...prev, slug: generated }))
     }
   }, [formData.companyName])
@@ -72,12 +82,20 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
+      // Prepare form data - only include slug if it's valid
+      const submitData = {
+        ...formData,
+        slug: formData.slug && formData.slug.length >= 2 && /^[a-z0-9-]+$/.test(formData.slug)
+          ? formData.slug
+          : undefined, // Let backend generate if invalid
+      }
+      
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       })
 
       const data = await response.json()
@@ -89,7 +107,30 @@ export default function SignupPage() {
         // Redirect to admin
         window.location.href = '/admin'
       } else {
-        setError(data.error || 'Failed to create account')
+        // Extract user-friendly error message
+        let errorMessage = 'Failed to create account'
+        
+        if (data.error) {
+          // If error is a string, use it directly
+          if (typeof data.error === 'string') {
+            errorMessage = data.error
+          } 
+          // If error is an array (Zod errors), extract the first message
+          else if (Array.isArray(data.error)) {
+            const firstError = data.error[0]
+            if (firstError && typeof firstError === 'object' && 'message' in firstError) {
+              errorMessage = String(firstError.message)
+            } else if (typeof firstError === 'string') {
+              errorMessage = firstError
+            }
+          }
+          // If error is an object with a message property
+          else if (typeof data.error === 'object' && 'message' in data.error) {
+            errorMessage = String(data.error.message)
+          }
+        }
+        
+        setError(errorMessage)
       }
     } catch (error) {
       // Signup error handled by error state

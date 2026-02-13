@@ -10,11 +10,13 @@ const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`),
   website: z.string().url('Invalid website URL'),
-  slug: z.string()
-    .min(MIN_SLUG_LENGTH, `Slug must be at least ${MIN_SLUG_LENGTH} characters`)
-    .max(MAX_SLUG_LENGTH, `Slug must be less than ${MAX_SLUG_LENGTH} characters`)
-    .regex(SLUG_REGEX, 'Slug can only contain lowercase letters, numbers, and hyphens')
-    .optional(),
+  slug: z.union([
+    z.string()
+      .min(MIN_SLUG_LENGTH, `Slug must be at least ${MIN_SLUG_LENGTH} characters`)
+      .max(MAX_SLUG_LENGTH, `Slug must be less than ${MAX_SLUG_LENGTH} characters`)
+      .regex(SLUG_REGEX, 'Slug can only contain lowercase letters, numbers, and hyphens'),
+    z.literal(''), // Allow empty string, backend will generate
+  ]).optional(),
 })
 
 const signupHandler = async (request: NextRequest) => {
@@ -24,13 +26,18 @@ const signupHandler = async (request: NextRequest) => {
     // Validate input
     const validated = signupSchema.parse(body)
     
+    // Normalize slug - if empty or invalid, let backend generate it
+    const slug = validated.slug && validated.slug.trim().length >= MIN_SLUG_LENGTH 
+      ? validated.slug.trim().toLowerCase()
+      : undefined
+    
     // Create account
     const account = await createAccount({
       companyName: validated.companyName,
       email: validated.email,
       password: validated.password,
       website: validated.website,
-      slug: validated.slug,
+      slug: slug,
     })
 
     // Return account (without password hash)

@@ -97,9 +97,22 @@ export function handleZodError(error: unknown): NextResponse<ApiError> | null {
   const { ZodError } = require('zod')
   
   if (error && typeof error === 'object' && error instanceof ZodError) {
-    const zodError = error as { errors: Array<{ message: string }> }
+    const zodError = error as { errors: Array<{ message: string; path: (string | number)[] }> }
     if (zodError.errors && zodError.errors.length > 0) {
-      return validationError(zodError.errors[0].message)
+      // Get the first error and format it nicely
+      const firstError = zodError.errors[0]
+      const fieldName = firstError.path && firstError.path.length > 0 
+        ? String(firstError.path[firstError.path.length - 1])
+        : 'field'
+      
+      // Format field name nicely (e.g., "companyName" -> "Company Name")
+      const formattedFieldName = fieldName
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, str => str.toUpperCase())
+        .trim()
+      
+      // Return user-friendly error message
+      return validationError(firstError.message || `${formattedFieldName} is invalid`)
     }
   }
   
