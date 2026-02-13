@@ -125,7 +125,7 @@ export default function SignupPage() {
                 value={formData.companyName}
                 onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                 className="w-full px-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
-                placeholder="Flo Financial & Tax Services"
+                placeholder="Your Company Name"
               />
             </div>
 
@@ -155,7 +155,7 @@ export default function SignupPage() {
                 value={formData.website}
                 onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                 className="w-full px-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
-                placeholder="https://www.flo-financial.com"
+                placeholder="https://www.yourcompany.com"
               />
             </div>
 
