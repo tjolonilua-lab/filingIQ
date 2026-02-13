@@ -3,9 +3,11 @@
  * Validates required environment variables at startup
  */
 
-// Type definition for environment configuration (used for documentation)
-// @ts-expect-error - Interface is used for type documentation
-interface EnvConfig {
+/**
+ * Type definition for environment configuration
+ * Used for documentation and type checking
+ */
+export interface EnvConfig {
   // Required for production
   POSTGRES_URL?: string
   AWS_ACCESS_KEY_ID?: string
