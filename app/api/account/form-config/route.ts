@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { updateAccountSettings, getFormConfig } from '@/lib/accounts'
 import { FormConfiguration, validateFormConfig, defaultFormConfig } from '@/lib/form-config'
-import { handleApiError, handleZodError, unauthorizedError, validationError, okResponse } from '@/lib/api'
+import { handleApiError, unauthorizedError, validationError, okResponse } from '@/lib/api'
 import { requireAccountId } from '@/lib/api/auth'
 import { logger } from '@/lib/logger'
 
