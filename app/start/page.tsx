@@ -189,7 +189,8 @@ export default function StartPage() {
       }
 
       const data = await response.json()
-      setAnalysisResults(data.results || [])
+      const results = data.results ?? data.data?.results ?? []
+      setAnalysisResults(Array.isArray(results) ? results : [])
     } catch (error) {
       // Analysis error - non-critical, user can still submit
       setAnalysisResults(
