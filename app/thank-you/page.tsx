@@ -21,15 +21,17 @@ function ThankYouContent() {
       })
         .then(res => res.json())
         .then(data => {
-          if (data.success && data.account) {
+          // Handle both response formats: data.account (direct) or data.data.account (nested)
+          const account = data.account || data.data?.account
+          if (data.success && account) {
             setBranding({
-              businessName: data.account.companyName,
-              businessEmail: data.account.email,
-              businessPhone: data.account.settings?.phone || '',
-              businessWebsite: data.account.website,
-              mainWebsiteUrl: data.account.settings?.mainWebsiteUrl,
-              primaryColor: data.account.settings?.primaryColor || defaultBranding.primaryColor,
-              accentColor: data.account.settings?.accentColor || defaultBranding.accentColor,
+              businessName: account.companyName,
+              businessEmail: account.email,
+              businessPhone: account.settings?.phone || '',
+              businessWebsite: account.website,
+              mainWebsiteUrl: account.settings?.mainWebsiteUrl,
+              primaryColor: account.settings?.primaryColor || defaultBranding.primaryColor,
+              accentColor: account.settings?.accentColor || defaultBranding.accentColor,
             })
           }
         })

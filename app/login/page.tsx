@@ -30,11 +30,14 @@ export default function LoginPage() {
 
       const data = await response.json()
 
-      if (data.success && data.account && data.account.id) {
+      // Handle both response formats: data.account (direct) or data.data.account (nested)
+      const account = data.account || data.data?.account
+
+      if (data.success && account && account.id) {
         // Store account ID in localStorage for session management
         // TODO: Replace with httpOnly cookies for production
-        localStorage.setItem('account_id', data.account.id)
-        localStorage.setItem('account_email', data.account.email || formData.email)
+        localStorage.setItem('account_id', account.id)
+        localStorage.setItem('account_email', account.email || formData.email)
         // Use router.push for better navigation
         router.push('/admin')
       } else {

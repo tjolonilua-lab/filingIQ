@@ -32,12 +32,14 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
         
         if (response.ok) {
           const data = await response.json()
-          if (data.success && data.config) {
+          // Handle both response formats: data.config (direct) or data.data.config (nested)
+          const config = data.config || data.data?.config
+          if (data.success && config) {
             // Check if this is a custom config (not the default)
-            const isDefault = JSON.stringify(data.config) === JSON.stringify(defaultFormConfig)
+            const isDefault = JSON.stringify(config) === JSON.stringify(defaultFormConfig)
             // Track if custom config exists
             setUseCustomForm(!isDefault)
-            setConfig(data.config)
+            setConfig(config)
           }
         }
       } catch (error) {
@@ -131,8 +133,10 @@ export default function FormBuilder({ accountId }: FormBuilderProps) {
       })
       
       const data = await response.json()
-      if (data.success && data.config) {
-        setConfig(data.config)
+      // Handle both response formats: data.config (direct) or data.data.config (nested)
+      const config = data.config || data.data?.config
+      if (data.success && config) {
+        setConfig(config)
         showToast('Form reset to default configuration', 'success')
       } else {
         throw new Error(data.error || 'Failed to reset')

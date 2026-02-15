@@ -65,17 +65,19 @@ export default function StartPage() {
           'X-Account-Id': finalAccountId,
         },
       })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.account) {
-            setCompanyBranding({
-              companyName: data.account.companyName,
-              primaryColor: data.account.settings?.primaryColor || '#1e3a5f',
-              accentColor: data.account.settings?.accentColor || '#22c55e',
-              mainWebsiteUrl: data.account.settings?.mainWebsiteUrl,
-            })
-          }
-        })
+      .then(res => res.json())
+      .then(data => {
+        // Handle both response formats: data.account (direct) or data.data.account (nested)
+        const account = data.account || data.data?.account
+        if (data.success && account) {
+          setCompanyBranding({
+            companyName: account.companyName,
+            primaryColor: account.settings?.primaryColor || '#1e3a5f',
+            accentColor: account.settings?.accentColor || '#22c55e',
+            mainWebsiteUrl: account.settings?.mainWebsiteUrl,
+          })
+        }
+      })
         .catch((_err: Error) => {
           // Error loading branding - non-critical, continue without it
         })

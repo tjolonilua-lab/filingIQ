@@ -44,8 +44,10 @@ export default function AdminPage() {
       })
 
       const data = await response.json()
+      // Handle both response formats: data.submissions (direct) or data.data.submissions (nested)
+      const submissions = data.submissions || data.data?.submissions
       if (data.success) {
-        setSubmissions(data.submissions || [])
+        setSubmissions(submissions || [])
       }
     } catch (error) {
       // Error fetching submissions - handled by loading state

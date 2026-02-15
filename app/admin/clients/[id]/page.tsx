@@ -33,8 +33,10 @@ export default function ClientDetailPage() {
       })
 
       const data = await response.json()
-      if (data.success) {
-        const found = data.submissions.find((s: IntakeSubmission & { id: string }) => s.id === id)
+      // Handle both response formats: data.submissions (direct) or data.data.submissions (nested)
+      const submissions = data.submissions || data.data?.submissions
+      if (data.success && submissions) {
+        const found = submissions.find((s: IntakeSubmission & { id: string }) => s.id === id)
         if (found) {
           setClient(found)
         } else {

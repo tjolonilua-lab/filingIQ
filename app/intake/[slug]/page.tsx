@@ -30,8 +30,11 @@ export default function CompanyIntakePage() {
       const response = await fetch(`/api/account/lookup?slug=${slug}`)
       const data = await response.json()
       
-      if (data.success && data.account) {
-        setAccountId(data.account.id)
+      // Handle both response formats: data.account (direct) or data.data.account (nested)
+      const account = data.account || data.data?.account
+      
+      if (data.success && account) {
+        setAccountId(account.id)
       } else {
         setError('Company intake link not found')
         setLoading(false)
