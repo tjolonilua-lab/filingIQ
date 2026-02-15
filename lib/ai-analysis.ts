@@ -133,7 +133,8 @@ export async function analyzeDocument(
     if (mimeType === 'application/pdf') {
       ensureDOMMatrixPolyfill()
       const { pdf } = await import('pdf-to-img')
-      const document = await pdf(buffer, { scale: 2 })
+      const dataUrl = `data:application/pdf;base64,${buffer.toString('base64')}`
+      const document = await pdf(dataUrl, { scale: 2 })
       const firstPage = await document.getPage(1)
       base64Image = firstPage.toString('base64')
       imageFormat = 'png'
@@ -278,7 +279,9 @@ export async function analyzeDocuments(
         try {
           ensureDOMMatrixPolyfill()
           const { pdf } = await import('pdf-to-img')
-          const document = await pdf(fileBuffer, { scale: 2 })
+          // Pass as data URL to avoid pdf-to-img/pdfjs using buffer length as path (Node "path" argument error)
+          const dataUrl = `data:application/pdf;base64,${fileBuffer.toString('base64')}`
+          const document = await pdf(dataUrl, { scale: 2 })
           const firstPage = await document.getPage(1)
           fileBuffer = firstPage
           mimeType = 'image/png'
