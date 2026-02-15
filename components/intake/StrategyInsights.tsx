@@ -34,9 +34,19 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
 
   const successful = analyses.filter((a) => a.analysis)
   const strategies = extractStrategies(successful)
+  const hasNoSuccessfulAnalysis = successful.length === 0 && analyses.length > 0
 
   return (
     <div className="space-y-6">
+      {hasNoSuccessfulAnalysis && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
+          <p className="font-medium">Your document{analyses.length !== 1 ? 's' : ''} were received.</p>
+          <p className="text-sm mt-1">
+            AI analysis is not available for this submission (e.g. not configured or temporarily unavailable). You can still submit your intake—your documents will be reviewed by your tax preparer.
+          </p>
+        </div>
+      )}
+
       {strategies.length > 0 && (
         <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200">
           <h3 className="text-xl font-bold text-filingiq-blue mb-3 flex items-center">
@@ -63,17 +73,30 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
 
       <div>
         <h3 className="text-lg font-semibold text-filingiq-blue mb-4">
-          Document Analysis ({successful.length} document{successful.length !== 1 ? 's' : ''})
+          {successful.length > 0
+            ? `Document Analysis (${successful.length} document${successful.length !== 1 ? 's' : ''})`
+            : `Documents received (${analyses.length} document${analyses.length !== 1 ? 's' : ''})`}
         </h3>
-        <div className="space-y-4">
-          {successful.map((result, index) => (
-            <DocumentAnalysisCard
-              key={index}
-              filename={result.filename}
-              analysis={result.analysis!}
-            />
-          ))}
-        </div>
+        {successful.length > 0 ? (
+          <div className="space-y-4">
+            {successful.map((result, index) => (
+              <DocumentAnalysisCard
+                key={index}
+                filename={result.filename}
+                analysis={result.analysis!}
+              />
+            ))}
+          </div>
+        ) : (
+          <ul className="list-disc list-inside text-gray-600 space-y-1">
+            {analyses.map((a, index) => (
+              <li key={index}>
+                {a.filename}
+                {a.error && <span className="text-gray-500 text-sm"> — {a.error}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )
