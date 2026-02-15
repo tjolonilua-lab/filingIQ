@@ -10,6 +10,17 @@ import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './c
 
 import type { AnalysisResult } from './types/submission'
 
+/** Ensure DOMMatrix is defined for pdfjs (used by pdf-to-img) in Node/serverless */
+function ensureDOMMatrixPolyfill(): void {
+  if (typeof globalThis.DOMMatrix !== 'undefined') return
+  try {
+    const dm = require('dommatrix')
+    globalThis.DOMMatrix = dm.default ?? dm
+  } catch {
+    // optional polyfill
+  }
+}
+
 /**
  * Get OpenAI client at request time (so Vercel runtime env is used)
  */
@@ -120,6 +131,7 @@ export async function analyzeDocument(
     let imageFormat: 'png' | 'jpeg'
 
     if (mimeType === 'application/pdf') {
+      ensureDOMMatrixPolyfill()
       const { pdf } = await import('pdf-to-img')
       const document = await pdf(buffer, { scale: 2 })
       const firstPage = await document.getPage(1)
@@ -264,6 +276,7 @@ export async function analyzeDocuments(
       // Vision API only accepts image MIME types; convert PDF first page to PNG
       if (mimeType === 'application/pdf') {
         try {
+          ensureDOMMatrixPolyfill()
           const { pdf } = await import('pdf-to-img')
           const document = await pdf(fileBuffer, { scale: 2 })
           const firstPage = await document.getPage(1)
