@@ -230,7 +230,7 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
                       }}
                       className="flex-1 px-4 py-2.5 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-filingiq-blue/50 focus:border-filingiq-blue transition-all duration-200 outline-none"
                       placeholder="your-company-name"
-                      pattern="[a-z0-9-]+"
+                      pattern="[a-z0-9\-]+"
                     />
                   </div>
                   {checkingSlug && (
