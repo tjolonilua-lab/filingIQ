@@ -3,6 +3,7 @@ import type { DocumentAnalysis } from '@/lib/validation'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { logger } from './logger'
+import { getS3ObjectBuffer } from './upload'
 import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './constants'
 
 // DocumentAnalysis type is imported from validation
@@ -227,25 +228,28 @@ export async function analyzeDocuments(
       let mimeType = doc.type
       
       if (doc.urlOrPath.startsWith('http')) {
-        // S3 URL or HTTP URL - download the file
+        // S3 URL: use AWS credentials to download (bucket is private; fetch() would get 403)
+        const isS3Url = doc.urlOrPath.includes('.s3.') && doc.urlOrPath.includes('amazonaws.com')
         try {
-          const response = await fetch(doc.urlOrPath)
-          if (!response.ok) {
-            throw new Error(`Failed to download file: ${response.statusText}`)
-          }
-          const arrayBuffer = await response.arrayBuffer()
-          fileBuffer = Buffer.from(arrayBuffer)
-          
-          // Try to get content type from response headers
-          const contentType = response.headers.get('content-type')
-          if (contentType) {
-            mimeType = contentType
+          if (isS3Url) {
+            const { buffer, contentType } = await getS3ObjectBuffer(doc.urlOrPath)
+            fileBuffer = buffer
+            if (contentType) mimeType = contentType
+          } else {
+            const response = await fetch(doc.urlOrPath)
+            if (!response.ok) {
+              throw new Error(`Failed to download file: ${response.statusText}`)
+            }
+            const arrayBuffer = await response.arrayBuffer()
+            fileBuffer = Buffer.from(arrayBuffer)
+            const contentType = response.headers.get('content-type')
+            if (contentType) mimeType = contentType
           }
         } catch (error) {
           results.push({
             filename: doc.filename,
             analysis: null,
-            error: `Failed to download from S3: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
           })
           continue
         }

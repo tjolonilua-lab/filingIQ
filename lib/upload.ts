@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from './constants'
 import { logger } from './logger'
 
@@ -130,5 +130,29 @@ export async function storeUpload(
   // If S3 client exists but upload failed, we already threw an error above
   // This should never be reached, but just in case:
   throw new Error('File upload failed. S3 configuration may be incorrect. Check Vercel function logs for details.')
+}
+
+/**
+ * Download file content from S3 using the same credentials as upload.
+ * Use this instead of fetch() when the bucket is private (avoids 403 Forbidden).
+ */
+export async function getS3ObjectBuffer(s3Url: string): Promise<{ buffer: Buffer; contentType?: string }> {
+  if (!s3Client) {
+    throw new Error('S3 not configured. Cannot download file for analysis.')
+  }
+  const url = new URL(s3Url)
+  const hostnameParts = url.hostname.split('.')
+  const bucket = hostnameParts[0]
+  const key = url.pathname.substring(1)
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key })
+  const result = await s3Client.send(command)
+  const body = result.Body
+  if (!body) {
+    throw new Error('S3 object has no body')
+  }
+  const bytes = await body.transformToByteArray()
+  const buffer = Buffer.from(bytes)
+  const contentType = result.ContentType ?? undefined
+  return { buffer, contentType }
 }
 

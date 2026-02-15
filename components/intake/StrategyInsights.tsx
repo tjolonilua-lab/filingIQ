@@ -40,7 +40,7 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
     <div className="space-y-6">
       {hasNoSuccessfulAnalysis && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
-          <p className="font-medium">Your document{analyses.length !== 1 ? 's' : ''} were received.</p>
+          <p className="font-medium">Your document{analyses.length !== 1 ? 's were' : ' was'} received.</p>
           <p className="text-sm mt-1">
             AI analysis is not available for this submission (e.g. not configured or temporarily unavailable). You can still submit your intake—your documents will be reviewed by your tax preparer.
           </p>
