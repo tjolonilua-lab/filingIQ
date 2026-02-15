@@ -9,12 +9,14 @@ import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './c
 
 import type { AnalysisResult } from './types/submission'
 
-// Initialize OpenAI client if API key is available
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
-  : null
+/**
+ * Get OpenAI client at request time (so Vercel runtime env is used)
+ */
+function getOpenAIClient(): OpenAI | null {
+  const key = process.env.OPENAI_API_KEY
+  if (!key || key.trim() === '') return null
+  return new OpenAI({ apiKey: key })
+}
 
 /**
  * Analyzes a tax document from base64 buffer using OpenAI Vision API
@@ -24,7 +26,7 @@ async function analyzeDocumentFromBuffer(
   filename: string,
   imageFormat: 'png' | 'jpeg' | 'pdf'
 ): Promise<DocumentAnalysis | null> {
-  // Skip if OpenAI is not configured
+  const openai = getOpenAIClient()
   if (!openai) {
     logger.warn('OpenAI API key not configured, skipping document analysis')
     return null
@@ -270,6 +272,9 @@ export async function analyzeDocuments(
       results.push({
         filename: doc.filename,
         analysis,
+        ...(analysis === null && {
+          error: 'AI analysis unavailable. In Vercel, set OPENAI_API_KEY for Production and Preview and redeploy.',
+        }),
       })
     } catch (error) {
       results.push({

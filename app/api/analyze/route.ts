@@ -31,8 +31,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
     }
 
-    // Analyze documents
+    // Analyze documents (OPENAI_API_KEY read at request time in ai-analysis)
+    const hasOpenAIKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim())
+    logger.info('Analyze request', { fileCount: uploadedDocuments.length, openAIConfigured: hasOpenAIKey })
     const results = await analyzeDocuments(uploadedDocuments)
+    const successCount = results.filter((r) => r.analysis).length
+    if (successCount === 0 && results.length > 0) {
+      logger.warn('No documents analyzed successfully', { total: results.length, firstError: results[0]?.error })
+    }
 
     return okResponse({ results })
   } catch (error) {
