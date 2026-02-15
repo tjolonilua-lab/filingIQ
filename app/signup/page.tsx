@@ -274,10 +274,13 @@ export default function SignupPage() {
 
       const data = await response.json()
 
-      if (data.success && data.account) {
+      // Handle both response formats: data.account (direct) or data.data.account (nested)
+      const account = data.account || data.data?.account
+
+      if (data.success && account) {
         // Store account ID in localStorage for session management
-        localStorage.setItem('account_id', data.account.id)
-        localStorage.setItem('account_email', data.account.email)
+        localStorage.setItem('account_id', account.id)
+        localStorage.setItem('account_email', account.email)
         // Redirect to admin
         window.location.href = '/admin'
       } else {
