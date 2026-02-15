@@ -3,7 +3,6 @@ import { createAccount } from '@/lib/accounts'
 import { z } from 'zod'
 import { handleApiError, handleZodError, createdResponse, sanitizeAccount } from '@/lib/api'
 import { MIN_SLUG_LENGTH, MAX_SLUG_LENGTH, SLUG_REGEX, MIN_PASSWORD_LENGTH } from '@/lib/constants'
-import { withRateLimit, RATE_LIMITS } from '@/lib/middleware/rate-limit'
 
 const signupSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
