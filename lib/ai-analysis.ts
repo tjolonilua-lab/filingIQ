@@ -10,15 +10,20 @@ import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './c
 
 import type { AnalysisResult } from './types/submission'
 
-/** Ensure DOMMatrix is defined for pdfjs (used by pdf-to-img) in Node/serverless */
-function ensureDOMMatrixPolyfill(): void {
-  if (typeof globalThis.DOMMatrix !== 'undefined') return
-  try {
-    const dm = require('dommatrix')
-    globalThis.DOMMatrix = dm.default ?? dm
-  } catch {
-    // optional polyfill
-  }
+/**
+ * Extract text from the first page of a PDF buffer using pdfjs (no canvas/rendering).
+ * Avoids "path" and DOMMatrix errors from pdf-to-img in serverless.
+ */
+async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const data = new Uint8Array(buffer)
+  const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
+  const page = await doc.getPage(1)
+  const content = await page.getTextContent()
+  const text = (content.items as { str?: string }[])
+    .map((item) => item.str ?? '')
+    .join(' ')
+  return text.trim() || '(No text extracted from PDF)'
 }
 
 /**
@@ -47,36 +52,6 @@ async function analyzeDocumentFromBuffer(
   try {
     const mimeType = imageFormat === 'png' ? 'image/png' : 'image/jpeg'
 
-    // Prepare the prompt for tax document analysis with strategy focus
-    const prompt = `Analyze this tax document and extract key information to identify tax optimization strategies.
-
-Extract:
-1. Document type (W-2, 1099-NEC, 1099-K, 1099-INT, 1099-DIV, Schedule C, etc.)
-2. Tax year
-3. All monetary amounts (wages, income, deductions, taxes withheld, etc.)
-4. Employer/payer name
-5. Recipient/taxpayer name and SSN (mask SSN for privacy, show last 4 digits only)
-6. Important dates
-7. Any other relevant tax information
-
-Then identify potential tax strategies based on the data:
-- Retirement contribution opportunities (401k, IRA, SEP-IRA, etc.)
-- Deduction maximization strategies
-- Income timing opportunities
-- Tax-advantaged investment strategies
-- Business expense optimization
-- Estimated tax planning
-- Any other tax-saving opportunities typically used by high-net-worth individuals
-
-Return a structured analysis with:
-- Document type with confidence level
-- Extracted data organized by category
-- Identified tax strategy opportunities with brief explanations
-- A summary highlighting the most impactful strategies
-- Actionable recommendations
-
-Focus on strategies that can meaningfully reduce tax liability. Be specific about dollar amounts and potential savings where possible.`
-
     // Call OpenAI Vision API
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || OPENAI_DEFAULT_MODEL,
@@ -86,7 +61,7 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
           content: [
             {
               type: 'text',
-              text: prompt,
+              text: TAX_ANALYSIS_PROMPT,
             },
             {
               type: 'image_url',
@@ -117,6 +92,62 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
   }
 }
 
+const TAX_ANALYSIS_PROMPT = `Analyze this tax document and extract key information to identify tax optimization strategies.
+
+Extract:
+1. Document type (W-2, 1099-NEC, 1099-K, 1099-INT, 1099-DIV, Schedule C, etc.)
+2. Tax year
+3. All monetary amounts (wages, income, deductions, taxes withheld, etc.)
+4. Employer/payer name
+5. Recipient/taxpayer name and SSN (mask SSN for privacy, show last 4 digits only)
+6. Important dates
+7. Any other relevant tax information
+
+Then identify potential tax strategies based on the data:
+- Retirement contribution opportunities (401k, IRA, SEP-IRA, etc.)
+- Deduction maximization strategies
+- Income timing opportunities
+- Tax-advantaged investment strategies
+- Business expense optimization
+- Estimated tax planning
+- Any other tax-saving opportunities typically used by high-net-worth individuals
+
+Return a structured analysis with:
+- Document type with confidence level
+- Extracted data organized by category
+- Identified tax strategy opportunities with brief explanations
+- A summary highlighting the most impactful strategies
+- Actionable recommendations
+
+Focus on strategies that can meaningfully reduce tax liability. Be specific about dollar amounts and potential savings where possible.`
+
+/**
+ * Analyze a document from extracted text (used for PDFs to avoid image conversion).
+ */
+async function analyzeDocumentFromText(extractedText: string, filename: string): Promise<DocumentAnalysis | null> {
+  const openai = getOpenAIClient()
+  if (!openai) return null
+  try {
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || OPENAI_DEFAULT_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: `${TAX_ANALYSIS_PROMPT}\n\n---\nExtracted text from "${filename}":\n\n${extractedText}`,
+        },
+      ],
+      max_tokens: OPENAI_MAX_TOKENS,
+      temperature: OPENAI_TEMPERATURE,
+    })
+    const analysisText = response.choices[0]?.message?.content
+    if (!analysisText) return null
+    return parseAnalysisResponse(analysisText, filename)
+  } catch (error) {
+    logger.error(`Error analyzing document from text ${filename}`, error as Error)
+    throw error
+  }
+}
+
 /**
  * Analyzes a tax document using OpenAI Vision API (from file path)
  */
@@ -131,18 +162,11 @@ export async function analyzeDocument(
     let imageFormat: 'png' | 'jpeg'
 
     if (mimeType === 'application/pdf') {
-      ensureDOMMatrixPolyfill()
-      const { pdf } = await import('pdf-to-img')
-      const dataUrl = `data:application/pdf;base64,${buffer.toString('base64')}`
-      const document = await pdf(dataUrl, { scale: 2 })
-      const firstPage = await document.getPage(1)
-      base64Image = firstPage.toString('base64')
-      imageFormat = 'png'
-    } else {
-      base64Image = buffer.toString('base64')
-      imageFormat = mimeType.includes('png') ? 'png' : 'jpeg'
+      const extractedText = await extractTextFromPdfBuffer(buffer)
+      return await analyzeDocumentFromText(extractedText, filename)
     }
-
+    base64Image = buffer.toString('base64')
+    imageFormat = mimeType.includes('png') ? 'png' : 'jpeg'
     return await analyzeDocumentFromBuffer(base64Image, filename, imageFormat)
   } catch (error) {
     logger.error(`Error reading file ${filename}`, error as Error)
@@ -274,29 +298,30 @@ export async function analyzeDocuments(
         fileBuffer = await readFile(filePath)
       }
 
-      // Vision API only accepts image MIME types; convert PDF first page to PNG
+      // PDF: extract text and analyze with chat (no image conversion; avoids path/canvas errors in serverless)
       if (mimeType === 'application/pdf') {
         try {
-          ensureDOMMatrixPolyfill()
-          const { pdf } = await import('pdf-to-img')
-          // Pass as data URL to avoid pdf-to-img/pdfjs using buffer length as path (Node "path" argument error)
-          const dataUrl = `data:application/pdf;base64,${fileBuffer.toString('base64')}`
-          const document = await pdf(dataUrl, { scale: 2 })
-          const firstPage = await document.getPage(1)
-          fileBuffer = firstPage
-          mimeType = 'image/png'
+          const extractedText = await extractTextFromPdfBuffer(fileBuffer)
+          const analysis = await analyzeDocumentFromText(extractedText, doc.filename)
+          results.push({
+            filename: doc.filename,
+            analysis,
+            ...(analysis === null && {
+              error: 'AI analysis skipped (OpenAI not configured). Set OPENAI_API_KEY in Vercel for Production and Preview and redeploy.',
+            }),
+          })
         } catch (pdfError) {
-          logger.error('PDF to image conversion failed', pdfError as Error, { filename: doc.filename })
+          logger.error('PDF analysis failed', pdfError as Error, { filename: doc.filename })
           results.push({
             filename: doc.filename,
             analysis: null,
-            error: `Could not convert PDF to image: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
+            error: `Could not analyze PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
           })
-          continue
         }
+        continue
       }
 
-      // Convert buffer to base64 for OpenAI
+      // Convert buffer to base64 for OpenAI Vision (images only)
       const base64Image = fileBuffer.toString('base64')
       const imageFormat: 'png' | 'jpeg' = mimeType.includes('png') ? 'png' : 'jpeg'
 
