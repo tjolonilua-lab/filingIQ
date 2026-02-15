@@ -25,7 +25,7 @@ function getOpenAIClient(): OpenAI | null {
 async function analyzeDocumentFromBuffer(
   base64Image: string,
   filename: string,
-  imageFormat: 'png' | 'jpeg' | 'pdf'
+  imageFormat: 'png' | 'jpeg'
 ): Promise<DocumentAnalysis | null> {
   const openai = getOpenAIClient()
   if (!openai) {
@@ -34,7 +34,7 @@ async function analyzeDocumentFromBuffer(
   }
 
   try {
-    const mimeType = imageFormat === 'pdf' ? 'application/pdf' : imageFormat === 'png' ? 'image/png' : 'image/jpeg'
+    const mimeType = imageFormat === 'png' ? 'image/png' : 'image/jpeg'
 
     // Prepare the prompt for tax document analysis with strategy focus
     const prompt = `Analyze this tax document and extract key information to identify tax optimization strategies.
@@ -101,7 +101,8 @@ Focus on strategies that can meaningfully reduce tax liability. Be specific abou
     return parseAnalysisResponse(analysisText, filename)
   } catch (error) {
     logger.error(`Error analyzing document ${filename}`, error as Error)
-    return null
+    // Rethrow so caller can show the real error (e.g. 429 quota, invalid key)
+    throw error
   }
 }
 
@@ -114,16 +115,17 @@ export async function analyzeDocument(
   mimeType: string
 ): Promise<DocumentAnalysis | null> {
   try {
-    // Read file and convert to base64
+    const buffer = await readFile(filePath)
     let base64Image: string
-    let imageFormat: 'png' | 'jpeg' | 'pdf'
+    let imageFormat: 'png' | 'jpeg'
 
     if (mimeType === 'application/pdf') {
-      const buffer = await readFile(filePath)
-      base64Image = buffer.toString('base64')
-      imageFormat = 'pdf'
+      const { pdf } = await import('pdf-to-img')
+      const document = await pdf(buffer, { scale: 2 })
+      const firstPage = await document.getPage(1)
+      base64Image = firstPage.toString('base64')
+      imageFormat = 'png'
     } else {
-      const buffer = await readFile(filePath)
       base64Image = buffer.toString('base64')
       imageFormat = mimeType.includes('png') ? 'png' : 'jpeg'
     }
@@ -259,17 +261,28 @@ export async function analyzeDocuments(
         fileBuffer = await readFile(filePath)
       }
 
+      // Vision API only accepts image MIME types; convert PDF first page to PNG
+      if (mimeType === 'application/pdf') {
+        try {
+          const { pdf } = await import('pdf-to-img')
+          const document = await pdf(fileBuffer, { scale: 2 })
+          const firstPage = await document.getPage(1)
+          fileBuffer = firstPage
+          mimeType = 'image/png'
+        } catch (pdfError) {
+          logger.error('PDF to image conversion failed', pdfError as Error, { filename: doc.filename })
+          results.push({
+            filename: doc.filename,
+            analysis: null,
+            error: `Could not convert PDF to image: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
+          })
+          continue
+        }
+      }
+
       // Convert buffer to base64 for OpenAI
       const base64Image = fileBuffer.toString('base64')
-      let imageFormat: 'png' | 'jpeg' | 'pdf'
-      
-      if (mimeType === 'application/pdf') {
-        imageFormat = 'pdf'
-      } else if (mimeType.includes('png')) {
-        imageFormat = 'png'
-      } else {
-        imageFormat = 'jpeg'
-      }
+      const imageFormat: 'png' | 'jpeg' = mimeType.includes('png') ? 'png' : 'jpeg'
 
       // Analyze the document using base64 data
       const analysis = await analyzeDocumentFromBuffer(base64Image, doc.filename, imageFormat)
@@ -277,7 +290,7 @@ export async function analyzeDocuments(
         filename: doc.filename,
         analysis,
         ...(analysis === null && {
-          error: 'AI analysis unavailable. In Vercel, set OPENAI_API_KEY for Production and Preview and redeploy.',
+          error: 'AI analysis skipped (OpenAI not configured). Set OPENAI_API_KEY in Vercel for Production and Preview and redeploy.',
         }),
       })
     } catch (error) {
