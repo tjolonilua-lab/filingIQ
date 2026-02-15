@@ -47,16 +47,19 @@ export default function SettingsView({ accountId }: SettingsViewProps) {
       }
       
       const data = await response.json()
-      if (data.success && data.account) {
-        const acc = data.account
+      
+      // Handle both response formats: data.account (direct) or data.data.account (nested)
+      const account = data.account || data.data?.account
+      
+      if (data.success && account) {
         setSettings({
-          companyName: acc.companyName,
-          email: acc.email,
-          phone: acc.settings?.phone || '',
-          website: acc.website,
-          mainWebsiteUrl: acc.settings?.mainWebsiteUrl || '',
-          primaryColor: acc.settings?.primaryColor || branding.primaryColor,
-          accentColor: acc.settings?.accentColor || branding.accentColor,
+          companyName: account.companyName,
+          email: account.email,
+          phone: account.settings?.phone || '',
+          website: account.website,
+          mainWebsiteUrl: account.settings?.mainWebsiteUrl || '',
+          primaryColor: account.settings?.primaryColor || branding.primaryColor,
+          accentColor: account.settings?.accentColor || branding.accentColor,
         })
       } else {
         clientLogger.warn('Account settings response missing success or account data', { data })

@@ -40,10 +40,13 @@ export default function FormBuilderView({ accountId }: FormBuilderViewProps) {
       }
       
       const data = await response.json()
-      if (data.success && data.account) {
-        const acc = data.account
+      
+      // Handle both response formats: data.account (direct) or data.data.account (nested)
+      const account = data.account || data.data?.account
+      
+      if (data.success && account) {
         setSettings({
-          slug: acc.slug || '',
+          slug: account.slug || '',
         })
       } else {
         clientLogger.warn('Account settings response missing success or account data', { data })
