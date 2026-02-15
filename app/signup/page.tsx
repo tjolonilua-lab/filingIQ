@@ -256,6 +256,22 @@ export default function SignupPage() {
         body: JSON.stringify(submitData),
       })
 
+      // Check response status first
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        let errorMessage = 'Failed to create account'
+        
+        if (errorData.error) {
+          errorMessage = typeof errorData.error === 'string' ? errorData.error : 'Email already registered'
+        } else if (response.status === 409) {
+          errorMessage = 'This email is already registered. Please use a different email or try logging in.'
+        }
+        
+        console.error('Signup API error:', { status: response.status, data: errorData })
+        setError(errorMessage)
+        return
+      }
+
       const data = await response.json()
 
       if (data.success && data.account) {
