@@ -17,6 +17,102 @@ export default function SignupPage() {
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  
+  // Field validation warnings
+  const [fieldErrors, setFieldErrors] = useState<{
+    companyName?: string
+    email?: string
+    website?: string
+    slug?: string
+    password?: string
+  }>({})
+  
+  // Validate fields in real-time
+  const validateField = (name: string, value: string) => {
+    const errors = { ...fieldErrors }
+    
+    switch (name) {
+      case 'companyName':
+        if (!value.trim()) {
+          errors.companyName = 'Company name is required'
+        } else if (value.trim().length < 1) {
+          errors.companyName = 'Company name must be at least 1 character'
+        } else {
+          delete errors.companyName
+        }
+        break
+        
+      case 'email':
+        if (!value.trim()) {
+          errors.email = 'Email is required'
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          errors.email = 'Please enter a valid email address'
+        } else {
+          delete errors.email
+        }
+        break
+        
+      case 'website':
+        if (!value.trim()) {
+          errors.website = 'Website is required'
+        } else {
+          try {
+            new URL(value)
+            delete errors.website
+          } catch {
+            errors.website = 'Please enter a valid URL (e.g., https://example.com)'
+          }
+        }
+        break
+        
+      case 'slug':
+        if (value && value.length > 0) {
+          if (value.length < 2) {
+            errors.slug = 'Slug must be at least 2 characters'
+          } else if (!/^[a-z0-9-]+$/.test(value)) {
+            errors.slug = 'Slug can only contain lowercase letters, numbers, and hyphens'
+          } else if (slugAvailable === false) {
+            errors.slug = 'This slug is already taken'
+          } else {
+            delete errors.slug
+          }
+        } else {
+          delete errors.slug // Slug is optional, backend will generate
+        }
+        break
+        
+      case 'password':
+        if (!value) {
+          errors.password = 'Password is required'
+        } else if (value.length < 6) {
+          errors.password = 'Password must be at least 6 characters'
+        } else {
+          delete errors.password
+        }
+        break
+    }
+    
+    setFieldErrors(errors)
+  }
+  
+  // Check if form is valid
+  const isFormValid = () => {
+    return (
+      formData.companyName.trim().length > 0 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) &&
+      (() => {
+        try {
+          new URL(formData.website)
+          return true
+        } catch {
+          return false
+        }
+      })() &&
+      formData.password.length >= 6 &&
+      (slugAvailable !== false) && // Slug is available or not checked yet
+      Object.keys(fieldErrors).length === 0
+    )
+  }
 
   // Generate slug from company name
   const generateSlugFromCompanyName = (companyName: string): string => {
@@ -105,15 +201,36 @@ export default function SignupPage() {
     const timer = setTimeout(() => {
       if (formData.slug) {
         checkSlug(formData.slug)
+        validateField('slug', formData.slug)
       }
     }, 500)
 
     return () => clearTimeout(timer)
   }, [formData.slug])
+  
+  // Update slug validation when availability changes
+  useEffect(() => {
+    if (formData.slug) {
+      validateField('slug', formData.slug)
+    }
+  }, [slugAvailable])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Validate all fields before submission
+    validateField('companyName', formData.companyName)
+    validateField('email', formData.email)
+    validateField('website', formData.website)
+    validateField('slug', formData.slug)
+    validateField('password', formData.password)
+
+    // Check if form is valid
+    if (!isFormValid()) {
+      setError('Please fix the errors above before submitting')
+      return
+    }
 
     if (slugAvailable === false) {
       setError('Please choose a different URL slug')
@@ -151,6 +268,9 @@ export default function SignupPage() {
         // Extract user-friendly error message from API response
         let errorMessage = 'Failed to create account'
         
+        // Log the full response for debugging
+        console.error('Signup API error:', data)
+        
         if (data.error) {
           // API returns { success: false, error: "message" }
           if (typeof data.error === 'string') {
@@ -169,6 +289,11 @@ export default function SignupPage() {
           else if (typeof data.error === 'object' && 'message' in data.error) {
             errorMessage = String(data.error.message)
           }
+        }
+        
+        // If we have details, log them but don't show to user (might contain sensitive info)
+        if (data.details) {
+          console.error('Signup error details:', data.details)
         }
         
         setError(errorMessage)
@@ -205,10 +330,21 @@ export default function SignupPage() {
                 type="text"
                 required
                 value={formData.companyName}
-                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full px-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
+                onChange={(e) => {
+                  setFormData({ ...formData, companyName: e.target.value })
+                  validateField('companyName', e.target.value)
+                }}
+                onBlur={(e) => validateField('companyName', e.target.value)}
+                className={`w-full px-4 py-2 bg-filingiq-dark/50 border rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent ${
+                  fieldErrors.companyName 
+                    ? 'border-red-500/50 focus:ring-red-500' 
+                    : 'border-filingiq-cyan/30'
+                }`}
                 placeholder="Your Company Name"
               />
+              {fieldErrors.companyName && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.companyName}</p>
+              )}
             </div>
 
             <div>
@@ -220,10 +356,21 @@ export default function SignupPage() {
                 type="email"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value })
+                  validateField('email', e.target.value)
+                }}
+                onBlur={(e) => validateField('email', e.target.value)}
+                className={`w-full px-4 py-2 bg-filingiq-dark/50 border rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent ${
+                  fieldErrors.email 
+                    ? 'border-red-500/50 focus:ring-red-500' 
+                    : 'border-filingiq-cyan/30'
+                }`}
                 placeholder="you@company.com"
               />
+              {fieldErrors.email && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -235,10 +382,21 @@ export default function SignupPage() {
                 type="url"
                 required
                 value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                className="w-full px-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
+                onChange={(e) => {
+                  setFormData({ ...formData, website: e.target.value })
+                  validateField('website', e.target.value)
+                }}
+                onBlur={(e) => validateField('website', e.target.value)}
+                className={`w-full px-4 py-2 bg-filingiq-dark/50 border rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent ${
+                  fieldErrors.website 
+                    ? 'border-red-500/50 focus:ring-red-500' 
+                    : 'border-filingiq-cyan/30'
+                }`}
                 placeholder="https://www.yourcompany.com"
               />
+              {fieldErrors.website && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.website}</p>
+              )}
             </div>
 
             <div>
@@ -269,9 +427,13 @@ export default function SignupPage() {
                       }
                     }
                   }}
-                  className="w-full pl-[180px] pr-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
+                  className={`w-full pl-[180px] pr-4 py-2 bg-filingiq-dark/50 border rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent ${
+                    fieldErrors.slug || slugAvailable === false
+                      ? 'border-red-500/50 focus:ring-red-500' 
+                      : 'border-filingiq-cyan/30'
+                  }`}
                   placeholder="your-company"
-                  pattern="[a-z0-9-]+"
+                  pattern="[a-z0-9\-]+"
                 />
               </div>
               {formData.slug && (
@@ -281,9 +443,12 @@ export default function SignupPage() {
                   ) : slugAvailable === true ? (
                     <p className="text-xs text-green-400">✓ Available</p>
                   ) : slugAvailable === false ? (
-                    <p className="text-xs text-red-400">✗ Not available</p>
+                    <p className="text-xs text-red-400">✗ Not available - please choose a different slug</p>
                   ) : null}
                 </div>
+              )}
+              {fieldErrors.slug && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.slug}</p>
               )}
               <p className="text-xs text-gray-400 mt-1">
                 Only lowercase letters, numbers, and hyphens allowed
@@ -299,10 +464,26 @@ export default function SignupPage() {
                 type="password"
                 required
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-2 bg-filingiq-dark/50 border border-filingiq-cyan/30 rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent"
+                onChange={(e) => {
+                  setFormData({ ...formData, password: e.target.value })
+                  validateField('password', e.target.value)
+                }}
+                onBlur={(e) => validateField('password', e.target.value)}
+                className={`w-full px-4 py-2 bg-filingiq-dark/50 border rounded-lg text-white focus:ring-2 focus:ring-filingiq-cyan focus:border-transparent ${
+                  fieldErrors.password 
+                    ? 'border-red-500/50 focus:ring-red-500' 
+                    : 'border-filingiq-cyan/30'
+                }`}
                 placeholder="••••••••"
               />
+              {fieldErrors.password && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.password}</p>
+              )}
+              {!fieldErrors.password && formData.password.length > 0 && formData.password.length < 6 && (
+                <p className="text-xs text-yellow-400 mt-1">
+                  Password must be at least 6 characters ({formData.password.length}/6)
+                </p>
+              )}
             </div>
 
             {error && (
@@ -313,7 +494,7 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isFormValid()}
               className="w-full bg-filingiq-cyan hover:bg-filingiq-cyan/80 text-filingiq-dark font-semibold py-3 px-4 rounded-lg transition-colors shadow-glow-cyan mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating Account...' : 'Create Account'}

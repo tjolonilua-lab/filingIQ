@@ -43,15 +43,17 @@ const signupHandler = async (request: NextRequest) => {
     // Return account (without password hash)
     return createdResponse({ account: sanitizeAccount(account) })
   } catch (error) {
+    // Log the error for debugging
+    console.error('Signup error:', error)
+    
     const zodError = handleZodError(error)
     if (zodError) return zodError
     
+    // Handle API errors with better error messages
     return handleApiError(error)
   }
 }
 
-// Apply rate limiting (3 attempts per hour per IP)
-export const POST = withRateLimit(
-  signupHandler,
-  RATE_LIMITS.SIGNUP
-)
+// No rate limiting for signup - validation errors shouldn't count as attempts
+// Only login needs strict rate limiting for security
+export const POST = signupHandler

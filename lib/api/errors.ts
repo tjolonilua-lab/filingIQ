@@ -159,6 +159,18 @@ export function handleApiError(error: unknown): NextResponse<ApiError> {
       )
     }
 
+    // Database connection errors
+    if (
+      error.message.includes('Database connection error') ||
+      error.message.includes('Database not configured') ||
+      error.message.includes('not configured')
+    ) {
+      return serverError(
+        'Database connection error. Please contact support.',
+        error.message
+      )
+    }
+
     // Email already exists
     if (error.message === 'Email already registered') {
       return createErrorResponse(

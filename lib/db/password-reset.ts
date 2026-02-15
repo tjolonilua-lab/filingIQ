@@ -34,11 +34,16 @@ export async function validatePasswordResetTokenDB(token: string): Promise<{ acc
     throw new Error('Database not configured')
   }
   
+  // Validate input
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    return null
+  }
+  
   try {
     const result = await sql`
       SELECT account_id::text as "accountId"
       FROM password_reset_tokens
-      WHERE token = ${token}
+      WHERE token = ${token.trim()}
         AND expires_at > NOW()
         AND used = FALSE
       LIMIT 1
@@ -50,6 +55,13 @@ export async function validatePasswordResetTokenDB(token: string): Promise<{ acc
     }
     
     const accountId = String((rows[0] as { accountId: string | number }).accountId)
+    
+    // Validate accountId is not empty
+    if (!accountId || accountId.trim().length === 0) {
+      logger.warn('Password reset token has invalid account ID', { token: token.substring(0, 8) + '...' })
+      return null
+    }
+    
     return { accountId }
   } catch (error) {
     logger.error('Error validating password reset token', error as Error)

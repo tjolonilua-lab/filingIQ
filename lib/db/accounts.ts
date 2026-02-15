@@ -146,6 +146,15 @@ export async function findAccountBySlugDB(slug: string): Promise<CompanyAccount 
 
 // Check if slug is available
 export async function isSlugAvailableDB(slug: string, excludeAccountId?: string): Promise<boolean> {
+  // Validate input
+  if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
+    return false
+  }
+  
+  if (!sql) {
+    throw new Error('Database not configured')
+  }
+  
   try {
     const normalizedSlug = slug.toLowerCase().trim()
     
@@ -157,10 +166,6 @@ export async function isSlugAvailableDB(slug: string, excludeAccountId?: string)
     // Check if slug matches pattern
     if (!/^[a-z0-9-]+$/.test(normalizedSlug)) {
       return false
-    }
-    
-    if (!sql) {
-      throw new Error('Database not configured')
     }
     
     // Check if slug already exists

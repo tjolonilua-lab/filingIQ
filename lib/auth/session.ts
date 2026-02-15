@@ -27,24 +27,33 @@ const SESSION_DURATION_DAYS = 7
  * ```
  */
 export async function createSession(accountId: string): Promise<void> {
-  const secret = new TextEncoder().encode(JWT_SECRET)
-  
-  const token = await new SignJWT({ accountId })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_DURATION_DAYS}d`)
-    .sign(secret)
+  try {
+    if (!accountId || typeof accountId !== 'string' || accountId.trim().length === 0) {
+      throw new Error('Invalid account ID for session creation')
+    }
 
-  const cookieStore = await cookies()
-  cookieStore.set('session', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * SESSION_DURATION_DAYS, // 7 days
-    path: '/',
-  })
+    const secret = new TextEncoder().encode(JWT_SECRET)
+    
+    const token = await new SignJWT({ accountId })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime(`${SESSION_DURATION_DAYS}d`)
+      .sign(secret)
 
-  logger.info('Session created', { accountId })
+    const cookieStore = await cookies()
+    cookieStore.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * SESSION_DURATION_DAYS, // 7 days
+      path: '/',
+    })
+
+    logger.info('Session created', { accountId })
+  } catch (error) {
+    logger.error('Failed to create session', error as Error, { accountId })
+    throw error
+  }
 }
 
 /**

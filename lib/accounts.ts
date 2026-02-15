@@ -224,11 +224,18 @@ export async function createAccount(data: {
       let slug = data.slug?.toLowerCase().trim() || generateSlug(data.companyName)
       
       // Ensure slug is unique
+      // Add safety limit to prevent infinite loops
       let finalSlug = slug
       let counter = 1
+      const MAX_SLUG_ATTEMPTS = 1000 // Safety limit
       while (!(await isSlugAvailableDB(finalSlug))) {
         finalSlug = `${slug}-${counter}`
         counter++
+        if (counter > MAX_SLUG_ATTEMPTS) {
+          // Fallback to UUID-based slug if too many attempts
+          finalSlug = `${slug}-${crypto.randomUUID().substring(0, 8)}`
+          break
+        }
       }
 
       const accountId = crypto.randomUUID()
@@ -249,57 +256,100 @@ export async function createAccount(data: {
         settings: {},
       })
     } catch (error) {
-      logger.error('Error creating account in database, falling back to file system', error as Error)
-      // If it's a known error (like email already exists), re-throw it
-      if (error instanceof Error && (error.message.includes('Email already') || error.message.includes('Slug already'))) {
+      logger.error('Error creating account in database', error as Error, { 
+        email: data.email,
+        companyName: data.companyName 
+      })
+      
+      // If it's a known error (like email already exists or slug taken), re-throw it
+      if (error instanceof Error) {
+        if (error.message.includes('Email already') || error.message.includes('email')) {
+          throw new Error('Email already registered')
+        }
+        if (error.message.includes('Slug already') || error.message.includes('slug')) {
+          throw new Error('Slug already taken')
+        }
+        // If it's a database connection error, throw a more helpful message
+        if (error.message.includes('Database not configured') || error.message.includes('not configured')) {
+          throw new Error('Database connection error. Please contact support.')
+        }
+        // Re-throw other database errors as-is
         throw error
       }
+      // Unknown error type, wrap it
+      throw new Error(`Failed to create account: ${String(error)}`)
     }
   }
   
-  // Fallback to file system
-  const accounts = await loadAccounts()
-  
-  // Normalize email to lowercase for consistency
-  const normalizedEmail = data.email.toLowerCase().trim()
-  
-  // Double-check if email already exists (shouldn't happen due to check above, but safety check)
-  if (accounts.some(acc => acc.email.toLowerCase() === normalizedEmail)) {
-    throw new Error('Email already registered')
-  }
+  // Fallback to file system (only for local development)
+  // On Vercel, filesystem is read-only, so this will fail
+  try {
+    const accounts = await loadAccounts()
+    
+    // Normalize email to lowercase for consistency
+    const normalizedEmail = data.email.toLowerCase().trim()
+    
+    // Double-check if email already exists (shouldn't happen due to check above, but safety check)
+    if (accounts.some(acc => acc.email.toLowerCase() === normalizedEmail)) {
+      throw new Error('Email already registered')
+    }
 
-  // Generate or validate slug
-  let slug = data.slug?.toLowerCase().trim() || generateSlug(data.companyName)
-  
-  // Ensure slug is unique
-  let finalSlug = slug
-  let counter = 1
-  while (!(await isSlugAvailable(finalSlug))) {
-    finalSlug = `${slug}-${counter}`
-    counter++
-  }
+    // Generate or validate slug
+    let slug = data.slug?.toLowerCase().trim() || generateSlug(data.companyName)
+    
+    // Ensure slug is unique
+    // Add safety limit to prevent infinite loops
+    let finalSlug = slug
+    let counter = 1
+    const MAX_SLUG_ATTEMPTS = 1000 // Safety limit
+    while (!(await isSlugAvailable(finalSlug))) {
+      finalSlug = `${slug}-${counter}`
+      counter++
+      if (counter > MAX_SLUG_ATTEMPTS) {
+        // Fallback to UUID-based slug if too many attempts
+        finalSlug = `${slug}-${crypto.randomUUID().substring(0, 8)}`
+        break
+      }
+    }
 
-  const passwordHash = await hashPassword(data.password)
-  
-  const account: CompanyAccount = {
-    id: crypto.randomUUID(),
-    companyName: data.companyName,
-    email: normalizedEmail,
-    passwordHash: passwordHash,
-    website: data.website,
-    slug: finalSlug,
-    createdAt: new Date().toISOString(),
-    settings: {},
-  }
+    const passwordHash = await hashPassword(data.password)
+    
+    const account: CompanyAccount = {
+      id: crypto.randomUUID(),
+      companyName: data.companyName,
+      email: normalizedEmail,
+      passwordHash: passwordHash,
+      website: data.website,
+      slug: finalSlug,
+      createdAt: new Date().toISOString(),
+      settings: {},
+    }
 
-  accounts.push(account)
-  await saveAccounts(accounts)
-  
-  return account
+    accounts.push(account)
+    await saveAccounts(accounts)
+    
+    return account
+  } catch (filesystemError) {
+    // If filesystem save fails (e.g., on Vercel), throw a clear error
+    logger.error('Failed to save account to filesystem', filesystemError as Error)
+    if (filesystemError instanceof Error) {
+      if (filesystemError.message.includes('read-only') || filesystemError.message.includes('EPERM')) {
+        throw new Error('Database connection required. Please configure POSTGRES_URL environment variable.')
+      }
+      // Re-throw other filesystem errors
+      throw filesystemError
+    }
+    throw new Error('Failed to create account. Please ensure database is configured.')
+  }
 }
 
 // Find account by email (uses database if available, falls back to file system)
 export async function findAccountByEmail(email: string): Promise<CompanyAccount | null> {
+  // Validate input
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    return null
+  }
+  
   // Try database first
   if (await isDatabaseAvailable()) {
     try {
@@ -364,6 +414,11 @@ export async function findAccountById(id: string): Promise<CompanyAccount | null
  * ```
  */
 export async function findAccountBySlug(slug: string): Promise<CompanyAccount | null> {
+  // Validate input
+  if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
+    return null
+  }
+  
   // Try database first
   if (await isDatabaseAvailable()) {
     try {

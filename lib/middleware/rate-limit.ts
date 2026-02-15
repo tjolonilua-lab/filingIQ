@@ -53,7 +53,7 @@ export const RATE_LIMITS = {
     message: 'Too many password reset requests. Please try again later.',
   },
   SIGNUP: {
-    maxRequests: 3,
+    maxRequests: 100, // Very high limit - only to prevent abuse, not legitimate signups
     windowMs: 60 * 60 * 1000, // 1 hour
     message: 'Too many signup attempts. Please try again later.',
   },
@@ -170,10 +170,12 @@ export function withRateLimit(
     response.headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)))
 
     if (!allowed) {
+      const resetInMinutes = Math.ceil((resetAt - Date.now()) / (60 * 1000))
       logger.warn('Rate limit exceeded', {
         key,
         identifier,
         path: req.nextUrl.pathname,
+        resetInMinutes,
       })
     }
 
