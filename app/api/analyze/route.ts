@@ -46,12 +46,20 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     const hasOpenAIKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim())
     logger.info('Analyze request', { fileCount: uploadedDocuments.length, openAIConfigured: hasOpenAIKey, filingType })
-    const results = await analyzeDocuments(uploadedDocuments, filingType ? { filingType } : undefined)
-    const successCount = results.filter((r) => r.analysis).length
-    if (successCount === 0 && results.length > 0) {
-      logger.warn('No documents analyzed successfully', { total: results.length, firstError: results[0]?.error })
+    const analysisResults = await analyzeDocuments(uploadedDocuments, filingType ? { filingType } : undefined)
+    const successCount = analysisResults.filter((r) => r.analysis).length
+    if (successCount === 0 && analysisResults.length > 0) {
+      logger.warn('No documents analyzed successfully', { total: analysisResults.length, firstError: analysisResults[0]?.error })
     }
 
+    const results = uploadedDocuments.map((doc, i) => ({
+      filename: doc.filename,
+      urlOrPath: doc.urlOrPath,
+      size: doc.size,
+      type: doc.type,
+      analysis: analysisResults[i]?.analysis ?? null,
+      error: analysisResults[i]?.error,
+    }))
     return okResponse({ results })
   } catch (error) {
     logger.error('Analysis error', error as Error)

@@ -34,6 +34,9 @@ export default function StartPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [analysisResults, setAnalysisResults] = useState<Array<{
     filename: string
+    urlOrPath?: string
+    size?: number
+    type?: string
     analysis: DocumentAnalysis | null
     error?: string
   }>>([])
@@ -180,7 +183,7 @@ export default function StartPage() {
     }
 
     try {
-      const allResults: Array<{ filename: string; analysis: DocumentAnalysis | null; error?: string }> = []
+      const allResults: Array<{ filename: string; urlOrPath?: string; size?: number; type?: string; analysis: DocumentAnalysis | null; error?: string }> = []
 
       for (const batch of batches) {
         const formData = new FormData()
@@ -248,12 +251,25 @@ export default function StartPage() {
         incomeTypes: data.incomeTypes || [],
         otherIncome: data.otherIncome || '',
       }))
-      
-      files.forEach((file) => {
-        formData.append('files', file)
-      })
 
-      // Include accountId in the request if available
+      const canUseDocumentRefs = enableAIAnalysis && analysisResults.length === files.length && analysisResults.every((r) => r.urlOrPath)
+      if (canUseDocumentRefs) {
+        formData.append(
+          'documents',
+          JSON.stringify(
+            analysisResults.map((r) => ({
+              filename: r.filename,
+              urlOrPath: r.urlOrPath,
+              size: r.size ?? 0,
+              type: r.type ?? 'application/pdf',
+              analysis: r.analysis ?? undefined,
+            }))
+          )
+        )
+      } else {
+        files.forEach((file) => formData.append('files', file))
+      }
+
       const url = accountId ? `/api/intake?accountId=${accountId}` : '/api/intake'
       
       const response = await fetch(url, {
@@ -262,8 +278,17 @@ export default function StartPage() {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Submission failed')
+        let message = 'Submission failed'
+        try {
+          const text = await response.text()
+          const parsed = text ? (() => { try { return JSON.parse(text) } catch { return null } })() : null
+          if (parsed?.message) message = parsed.message
+          else if (response.status === 413) message = 'Your submission is too large (server limit). Try submitting fewer or smaller documents.'
+          else if (text && text.length < 200) message = text
+        } catch {
+          if (response.status === 413) message = 'Your submission is too large. Try fewer or smaller documents.'
+        }
+        throw new Error(message)
       }
 
       // Redirect to thank-you with accountId if available
@@ -651,6 +676,15 @@ export default function StartPage() {
             </div>
           </div>
 
+          {currentStep === (enableAIAnalysis ? 5 : 4) && files.length > 0 && (() => {
+            const totalSize = files.reduce((s, f) => s + f.size, 0)
+            const overLimit = totalSize > 4 * 1024 * 1024
+            return overLimit ? (
+              <div className="mt-4 max-w-2xl mx-auto p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                Your total upload size is large. If submit fails, try fewer or smaller documents.
+              </div>
+            ) : null
+          })()}
           {submitError && (
             <div className="mt-4 max-w-2xl mx-auto">
               <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">

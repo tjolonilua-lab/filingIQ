@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { intakeSchema, type IntakeSubmission, contactInfoSchema, filingInfoSchema, incomeTypesSchema } from '@/lib/validation'
+import { intakeSchema, type IntakeSubmission, type DocumentAnalysis, contactInfoSchema, filingInfoSchema, incomeTypesSchema } from '@/lib/validation'
 import { storeUpload } from '@/lib/upload'
 import { sendIntakeEmail } from '@/lib/email'
 import { analyzeDocuments, generateAnalysisSummary } from '@/lib/ai-analysis'
@@ -62,52 +62,80 @@ export const POST = withCorrelationId(async (request: NextRequest, correlationId
       return validationError('Invalid income information format')
     }
     
-    // Handle file uploads
-    const files = formData.getAll('files') as File[]
-    const uploadedDocuments: DocumentWithAnalysis[] = []
+    // Documents: either already-uploaded refs (from analyze step) or files to upload now
+    const documentsJson = formData.get('documents') as string | null
+    let uploadedDocuments: DocumentWithAnalysis[] = []
 
-    for (const file of files) {
+    if (documentsJson) {
       try {
-        const result = await storeUpload(file, file.name)
-        uploadedDocuments.push({
-          filename: file.name,
-          urlOrPath: result.urlOrPath,
-          size: file.size,
-          type: file.type,
-        })
-      } catch (error) {
-        logger.error(`Failed to upload file ${file.name}`, error as Error)
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        return serverError(
-          errorMessage.includes('S3') || errorMessage.includes('configure')
-            ? errorMessage
-            : `Failed to upload file: ${file.name}. ${errorMessage}`
-        )
+        const parsed = JSON.parse(documentsJson) as Array<{ filename: string; urlOrPath: string; size: number; type: string; analysis?: DocumentAnalysis | null }>
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          return validationError('Documents array is required when using document refs')
+        }
+        uploadedDocuments = parsed.map((d) => ({
+          filename: d.filename,
+          urlOrPath: d.urlOrPath,
+          size: d.size,
+          type: d.type,
+          analysis: d.analysis ?? undefined,
+        }))
+        logger.info('Intake using pre-uploaded document refs', { count: uploadedDocuments.length })
+      } catch (e) {
+        logger.error('Invalid documents JSON', e as Error)
+        return validationError('Invalid documents format')
+      }
+    } else {
+      const files = formData.getAll('files') as File[]
+      for (const file of files) {
+        try {
+          const result = await storeUpload(file, file.name)
+          uploadedDocuments.push({
+            filename: file.name,
+            urlOrPath: result.urlOrPath,
+            size: file.size,
+            type: file.type,
+          })
+        } catch (error) {
+          logger.error(`Failed to upload file ${file.name}`, error as Error)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          return serverError(
+            errorMessage.includes('S3') || errorMessage.includes('configure')
+              ? errorMessage
+              : `Failed to upload file: ${file.name}. ${errorMessage}`
+          )
+        }
       }
     }
 
-    // Analyze documents with AI (if enabled and configured)
+    if (uploadedDocuments.length === 0) {
+      return validationError('At least one document is required')
+    }
+
+    // Use existing analysis from document refs, or run AI analysis if we just uploaded files
     let documentAnalyses: AnalysisResult[] = []
+    const hasExistingAnalysis = uploadedDocuments.some((d) => d.analysis != null)
     const enableAIAnalysis = isAIAnalysisEnabled()
-    
-    if (enableAIAnalysis) {
+
+    if (hasExistingAnalysis) {
+      documentAnalyses = uploadedDocuments.map((doc) => ({
+        filename: doc.filename,
+        analysis: doc.analysis ?? null,
+        error: undefined,
+      }))
+      logger.info('Using analysis from document refs', { count: documentAnalyses.length })
+    } else if (enableAIAnalysis) {
       try {
         logger.info('Starting AI document analysis', { documentCount: uploadedDocuments.length, filingType: filingInfo.filingType })
         documentAnalyses = await analyzeDocuments(uploadedDocuments, { filingType: filingInfo.filingType })
-        
-        // Attach analysis results to documents
+
         uploadedDocuments.forEach((doc, index) => {
           const analysis = documentAnalyses[index]
-          if (analysis?.analysis) {
-            doc.analysis = analysis.analysis
-          }
+          if (analysis?.analysis) doc.analysis = analysis.analysis
         })
-        
-        const successCount = documentAnalyses.filter(a => a.analysis).length
+        const successCount = documentAnalyses.filter((a) => a.analysis).length
         logger.info(`Completed analysis for ${successCount} documents`)
       } catch (error) {
         logger.error('Document analysis failed (continuing without analysis)', error as Error)
-        // Continue without analysis - this is optional
       }
     }
 
