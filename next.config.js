@@ -4,6 +4,8 @@ const { withSentryConfig } = require('@sentry/nextjs')
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: require('path').join(__dirname),
+  // So pdfjs-dist resolves in serverless (worker path, fonts) instead of being bundled
+  serverExternalPackages: ['pdfjs-dist'],
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',

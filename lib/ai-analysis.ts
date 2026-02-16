@@ -22,11 +22,25 @@ function ensureDOMMatrixPolyfill(): void {
 }
 
 /**
+ * Load pdfjs worker so fake-worker setup finds it (avoids "Cannot find module pdf.worker.mjs" in serverless).
+ * Must run before getDocument. The worker module sets globalThis.pdfjsWorker when loaded.
+ */
+async function ensurePdfjsWorkerLoaded(): Promise<void> {
+  if (globalThis.pdfjsWorker != null) return
+  try {
+    await import('pdfjs-dist/legacy/build/pdf.worker.mjs')
+  } catch {
+    // Worker may already be set by another path; continue
+  }
+}
+
+/**
  * Extract text from the first page of a PDF buffer using pdfjs (no canvas/rendering).
  * Avoids "path" errors from pdf-to-img in serverless.
  */
 async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   ensureDOMMatrixPolyfill()
+  await ensurePdfjsWorkerLoaded()
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const data = new Uint8Array(buffer)
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
