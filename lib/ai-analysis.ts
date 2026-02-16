@@ -124,7 +124,7 @@ const TAX_ANALYSIS_PROMPT = `Analyze this tax document and extract key informati
 Extract:
 1. Document type (W-2, 1099-NEC, 1099-K, 1099-INT, 1099-DIV, Schedule C, etc.)
 2. Tax year
-3. All monetary amounts (wages, income, deductions, taxes withheld, etc.)
+3. All monetary amounts with clear labels (e.g. "Wages, tips, other compensation", "Federal income tax withheld", "Social security tax withheld", "Medicare tax withheld", "State wages", "State income tax withheld")
 4. Employer/payer name
 5. Recipient/taxpayer name and SSN (mask SSN for privacy, show last 4 digits only)
 6. Important dates
@@ -139,12 +139,11 @@ Then identify potential tax strategies based on the data:
 - Estimated tax planning
 - Any other tax-saving opportunities typically used by high-net-worth individuals
 
-Return a structured analysis with:
-- Document type with confidence level
-- Extracted data organized by category
-- Identified tax strategy opportunities with brief explanations
-- A summary highlighting the most impactful strategies
-- Actionable recommendations
+Return a structured analysis (JSON when possible) with:
+- documentType and confidence
+- extractedData including year and amounts (each amount with label and value; use descriptive labels like "Wages, tips, other compensation", not "Amount")
+- summary: 2–4 sentences that explicitly state the tax year and the main monetary figures (e.g. wages, federal tax withheld, Social Security withheld). Lead with the document type and tax year, then highlight key dollar amounts.
+- notes: 2–5 actionable strategy bullets based on this document. Each note should be one clear sentence (e.g. "Maximize 401(k) contributions to reduce taxable wages." or "Review estimated tax payments to avoid underpayment penalties."). Do not include a generic "may need manual review" note unless you have no specific strategies to suggest.
 
 Focus on strategies that can meaningfully reduce tax liability. Be specific about dollar amounts and potential savings where possible.`
 
@@ -243,6 +242,7 @@ function parseAnalysisResponse(
 
   // Fallback: extract information from text using regex patterns
   const documentTypeMatch = responseText.match(/document type[:\s]+([A-Z0-9-]+)/i)
+  const docType = (documentTypeMatch?.[1] || 'Unknown').toUpperCase()
   const yearMatch = responseText.match(/(?:tax year|year)[:\s]+(\d{4})/i)
   const amountMatches = responseText.match(/\$?([\d,]+\.?\d*)/g)
 
@@ -255,6 +255,29 @@ function parseAnalysisResponse(
         .filter((a): a is { label: string; value: number } => a !== null)
     : []
 
+  const fallbackNotes: string[] = []
+  if (docType.includes('W-2')) {
+    fallbackNotes.push('Consider maximizing 401(k) or IRA contributions to reduce taxable wages.')
+    fallbackNotes.push('Review withholding to avoid underpayment or overpayment for the year.')
+  }
+  if (docType.includes('1099')) {
+    fallbackNotes.push('Set aside estimated taxes on self-employment or freelance income.')
+    fallbackNotes.push('Explore retirement plans for self-employed individuals (e.g. SEP-IRA, Solo 401k).')
+  }
+  fallbackNotes.push('A tax professional can provide personalized strategy based on your full situation.')
+
+  const yearStr = yearMatch?.[1] || 'not specified'
+  const topAmounts = amounts.length > 0
+    ? amounts
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 4)
+        .map((a) => `$${a.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
+        .join(', ')
+    : ''
+  const summaryFallback =
+    responseText.substring(0, 400).trim() ||
+    `Document identified as ${docType}. **Tax year: ${yearStr}.**${topAmounts ? ` Key amounts extracted: ${topAmounts}.` : ' Key amounts extracted for review.'}`
+
   return {
     documentType: documentTypeMatch?.[1] || 'Unknown',
     confidence: 'low',
@@ -262,8 +285,8 @@ function parseAnalysisResponse(
       year: yearMatch?.[1],
       amounts: amounts.length > 0 ? amounts : undefined,
     },
-    summary: responseText.substring(0, 300),
-    notes: ['Analysis extracted from text response - may need manual review'],
+    summary: summaryFallback,
+    notes: fallbackNotes,
   }
 }
 

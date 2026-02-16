@@ -197,6 +197,18 @@ function formatInline(s: string): React.ReactNode {
   return <>{out}</>
 }
 
+/** Pick key amounts to highlight: labeled first (e.g. Wages, Federal tax withheld), then by size */
+function getKeyAmounts(amounts: Array<{ label: string; value: number; description?: string }>, max: number) {
+  const hasMeaningfulLabels = amounts.some((a) => a.label && a.label !== 'Amount' && a.label !== 'Item')
+  if (hasMeaningfulLabels) {
+    const labeled = amounts.filter((a) => a.label && a.label !== 'Amount' && a.label !== 'Item')
+    return labeled.slice(0, max)
+  }
+  return [...amounts]
+    .sort((a, b) => b.value - a.value)
+    .slice(0, max)
+}
+
 function DocumentAnalysisCard({
   filename,
   analysis,
@@ -210,12 +222,13 @@ function DocumentAnalysisCard({
     low: 'bg-rose-100 text-rose-800 border-rose-200',
   }
   const amounts = analysis.extractedData.amounts ?? []
-  const hasGenericLabels = amounts.length > 0 && amounts.every((a) => !a.label || a.label === 'Amount' || a.label === 'Item')
-  const maxAmountsVisible = 12
+  const keyAmounts = getKeyAmounts(amounts, 6)
+  const fmt = (n: number) =>
+    '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
     <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h4 className="font-semibold text-filingiq-blue truncate">{filename}</h4>
           <p className="text-sm text-gray-500 mt-0.5">{analysis.documentType}</p>
@@ -227,65 +240,44 @@ function DocumentAnalysisCard({
         </span>
       </div>
 
-      {analysis.extractedData.year && (
-        <div className="flex items-center gap-2 mb-4 py-2 px-3 bg-gray-50 rounded-lg">
-          <span className="text-sm font-medium text-gray-500">Tax year</span>
-          <span className="text-sm font-semibold text-gray-900">{analysis.extractedData.year}</span>
-        </div>
-      )}
-
-      {amounts.length > 0 && (
-        <div className="mb-5">
-          <p className="text-sm font-semibold text-gray-700 mb-2">Amounts found</p>
-          <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <div className="max-h-56 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr>
-                    <th className="text-left py-2.5 px-3 font-medium text-gray-600">
-                      {hasGenericLabels ? '#' : 'Description'}
-                    </th>
-                    <th className="text-right py-2.5 px-3 font-medium text-gray-600">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {amounts.slice(0, maxAmountsVisible).map((amount, idx) => (
-                    <tr
-                      key={idx}
-                      className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
-                    >
-                      <td className="py-2 px-3 text-gray-700">
-                        {hasGenericLabels ? idx + 1 : (amount.label || amount.description || '—')}
-                      </td>
-                      <td className="py-2 px-3 text-right font-medium tabular-nums text-gray-900">
-                        ${amount.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* Key details: tax year + main amounts highlighted for quick scan */}
+      <div className="mb-5 p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-100">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {analysis.extractedData.year && (
+            <div>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax year</span>
+              <p className="text-lg font-bold text-filingiq-blue mt-0.5">{analysis.extractedData.year}</p>
             </div>
-            {amounts.length > maxAmountsVisible && (
-              <div className="py-2 px-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
-                + {amounts.length - maxAmountsVisible} more amount{amounts.length - maxAmountsVisible !== 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
+          )}
+          {keyAmounts.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {keyAmounts.map((a, idx) => (
+                <div key={idx} className="bg-white/80 rounded-lg px-3 py-2 border border-slate-100 shadow-sm">
+                  <span className="text-xs text-gray-500 block">
+                    {a.label && a.label !== 'Amount' ? a.label : `Amount ${idx + 1}`}
+                  </span>
+                  <span className="text-sm font-semibold tabular-nums text-gray-900">{fmt(a.value)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
+      {/* Analysis summary — main focus */}
       {analysis.summary && (
-        <div className="pt-5 border-t border-gray-100">
-          <p className="text-sm font-semibold text-gray-700 mb-2">Analysis summary</p>
+        <div className="mb-5">
+          <h4 className="text-sm font-semibold text-gray-800 mb-2">Analysis summary</h4>
           <div className="text-sm text-gray-700 prose prose-sm max-w-none">
             <SummaryBlock text={analysis.summary} />
           </div>
         </div>
       )}
 
+      {/* Strategy notes — actionable recommendations */}
       {analysis.notes && analysis.notes.length > 0 && (
-        <div className="mt-5 pt-5 border-t border-gray-100">
-          <p className="text-sm font-semibold text-gray-700 mb-2">Strategy notes</p>
+        <div className="pt-4 border-t border-gray-100">
+          <h4 className="text-sm font-semibold text-gray-800 mb-2">Strategy notes</h4>
           <ul className="space-y-2">
             {analysis.notes.map((note, idx) => (
               <li key={idx} className="flex gap-2 text-sm text-gray-700">
