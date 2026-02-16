@@ -1,6 +1,5 @@
 'use client'
 
-import React from 'react'
 import type { DocumentAnalysis } from '@/lib/validation'
 
 interface StrategyInsightsProps {
@@ -12,15 +11,28 @@ interface StrategyInsightsProps {
   isLoading?: boolean
 }
 
+/** Build a short label of document types we saw (e.g. "W-2s, 1099-K, 1098") for the snapshot. */
+function getDocumentTypesSummary(analyses: Array<{ analysis: DocumentAnalysis | null }>): string {
+  const types = new Set<string>()
+  analyses.forEach(({ analysis }) => {
+    if (analysis?.documentType) types.add(analysis.documentType)
+  })
+  const list = Array.from(types)
+  if (list.length === 0) return ''
+  if (list.length === 1) return list[0]
+  if (list.length === 2) return list.join(' and ')
+  return list.slice(0, -1).join(', ') + ', and ' + list[list.length - 1]
+}
+
 export default function StrategyInsights({ analyses, isLoading }: StrategyInsightsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
         <div className="flex items-center space-x-3 text-filingiq-blue">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-filingiq-blue"></div>
-          <span className="font-medium">Analyzing documents and identifying tax strategies...</span>
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-filingiq-blue" />
+          <span className="font-medium">Taking a quick look at your documents...</span>
         </div>
-        <p className="text-sm text-gray-600">This may take a moment. We're finding opportunities typically reserved for billionaires.</p>
+        <p className="text-sm text-gray-600">Your preparer will deliver a full strategy after you submit.</p>
       </div>
     )
   }
@@ -28,7 +40,7 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
   if (analyses.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <p>No analysis results available.</p>
+        <p>No documents to review.</p>
       </div>
     )
   }
@@ -37,14 +49,32 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
   const strategies = extractStrategies(successful)
   const hasNoSuccessfulAnalysis = successful.length === 0 && analyses.length > 0
   const firstError = hasNoSuccessfulAnalysis && analyses[0]?.error ? analyses[0].error : null
+  const docTypesSummary = getDocumentTypesSummary(successful)
 
   return (
     <div className="space-y-6">
+      {/* Snapshot: one line + reassurance */}
+      <div className="rounded-xl bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-200 p-5">
+        <p className="text-gray-800 font-medium">
+          {successful.length > 0 ? (
+            <>
+              We took a quick look at your {analyses.length} document{analyses.length !== 1 ? 's' : ''}
+              {docTypesSummary ? ` (${docTypesSummary})` : ''} and spotted some opportunities below.
+            </>
+          ) : (
+            <>We received your {analyses.length} document{analyses.length !== 1 ? 's' : ''}.</>
+          )}
+        </p>
+        <p className="text-sm text-gray-600 mt-2">
+          Your preparer will review everything in detail and deliver a full tax strategy—this is just a sneak peek.
+        </p>
+      </div>
+
       {hasNoSuccessfulAnalysis && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
-          <p className="font-medium">Your document{analyses.length !== 1 ? 's were' : ' was'} received.</p>
+          <p className="font-medium">Quick review wasn’t available for this run.</p>
           <p className="text-sm mt-1">
-            AI analysis is not available for this submission. You can still submit your intake—your documents will be reviewed by your tax preparer.
+            Your documents are received. Submit below and your preparer will analyze them and get back to you.
           </p>
           {firstError && (
             <p className="text-sm mt-2 font-mono bg-amber-100/80 rounded px-2 py-1 break-words">
@@ -54,14 +84,11 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
         </div>
       )}
 
+      {/* Teaser: strategies we spotted */}
       {strategies.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200">
-          <h3 className="text-xl font-bold text-filingiq-blue mb-3 flex items-center">
-            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-            Identified Tax Strategies
-          </h3>
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
+          <h3 className="text-lg font-bold text-filingiq-blue mb-1">What we’re already seeing</h3>
+          <p className="text-sm text-gray-600 mb-4">Your preparer will build on this and deliver a full plan.</p>
           <div className="space-y-3">
             {strategies.map((strategy, idx) => (
               <div key={idx} className="bg-white rounded-lg p-4 shadow-sm border-l-4 border-filingiq-blue">
@@ -69,7 +96,7 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
                 <p className="text-sm text-gray-700">{strategy.description}</p>
                 {strategy.potentialSavings && (
                   <p className="text-sm font-medium text-filingiq-blue mt-2">
-                    Potential Savings: {strategy.potentialSavings}
+                    Potential savings: {strategy.potentialSavings}
                   </p>
                 )}
               </div>
@@ -78,33 +105,9 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
         </div>
       )}
 
-      <div>
-        <h3 className="text-lg font-semibold text-filingiq-blue mb-4">
-          {successful.length > 0
-            ? `Document Analysis (${successful.length} document${successful.length !== 1 ? 's' : ''})`
-            : `Documents received (${analyses.length} document${analyses.length !== 1 ? 's' : ''})`}
-        </h3>
-        {successful.length > 0 ? (
-          <div className="space-y-4">
-            {successful.map((result, index) => (
-              <DocumentAnalysisCard
-                key={index}
-                filename={result.filename}
-                analysis={result.analysis!}
-              />
-            ))}
-          </div>
-        ) : (
-          <ul className="list-disc list-inside text-gray-600 space-y-1">
-            {analyses.map((a, index) => (
-              <li key={index}>
-                {a.filename}
-                {a.error && <span className="text-gray-500 text-sm"> — {a.error}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <p className="text-center text-sm text-gray-500">
+        Submit below to send your intake. Your preparer will review all {analyses.length} document{analyses.length !== 1 ? 's' : ''} and follow up with a detailed strategy.
+      </p>
     </div>
   )
 }
@@ -147,6 +150,15 @@ function extractStrategies(analyses: Array<{ analysis: DocumentAnalysis | null }
         description: 'Optimize when income is recognized to minimize tax liability across years.',
       })
     }
+
+    // Look for mortgage / itemizing (1098)
+    if (text.includes('1098') || text.includes('mortgage') || text.includes('itemiz')) {
+      strategies.push({
+        title: 'Itemized Deductions',
+        description: 'Mortgage interest and other itemized deductions may exceed the standard deduction—worth a closer look.',
+        potentialSavings: 'Varies; often significant for mortgage interest',
+      })
+    }
   })
 
   // Remove duplicates
@@ -155,146 +167,5 @@ function extractStrategies(analyses: Array<{ analysis: DocumentAnalysis | null }
   )
 
   return unique
-}
-
-/** Render summary text with simple markdown (### ## ** and newlines) */
-function SummaryBlock({ text }: { text: string }) {
-  const parts: React.ReactNode[] = []
-  const lines = text.split(/\n/)
-  let key = 0
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      parts.push(<br key={key++} />)
-      continue
-    }
-    if (trimmed.startsWith('#### ')) {
-      parts.push(<h4 key={key++} className="text-sm font-semibold text-gray-900 mt-3 mb-1 first:mt-0">{formatInline(trimmed.slice(5))}</h4>)
-      continue
-    }
-    if (trimmed.startsWith('### ')) {
-      parts.push(<h3 key={key++} className="text-base font-semibold text-filingiq-blue mt-4 mb-1 first:mt-0">{formatInline(trimmed.slice(4))}</h3>)
-      continue
-    }
-    if (trimmed.startsWith('## ')) {
-      parts.push(<h3 key={key++} className="text-base font-semibold text-gray-900 mt-4 mb-1 first:mt-0">{formatInline(trimmed.slice(3))}</h3>)
-      continue
-    }
-    parts.push(<p key={key++} className="text-sm text-gray-700 leading-relaxed">{formatInline(trimmed)}</p>)
-  }
-  return <div className="space-y-0.5">{parts}</div>
-}
-
-function formatInline(s: string): React.ReactNode {
-  const out: React.ReactNode[] = []
-  let rest = s
-  let key = 0
-  while (rest.length > 0) {
-    const bold = rest.match(/\*\*([^*]+)\*\*/)
-    if (bold && bold.index !== undefined) {
-      if (bold.index > 0) out.push(<span key={key++}>{rest.slice(0, bold.index)}</span>)
-      out.push(<strong key={key++} className="font-semibold text-gray-900">{bold[1]}</strong>)
-      rest = rest.slice(bold.index + bold[0].length)
-    } else {
-      out.push(<span key={key++}>{rest}</span>)
-      break
-    }
-  }
-  return <>{out}</>
-}
-
-/** Pick key amounts to highlight: labeled first (e.g. Wages, Federal tax withheld), then by size */
-function getKeyAmounts(amounts: Array<{ label: string; value: number; description?: string }>, max: number) {
-  const hasMeaningfulLabels = amounts.some((a) => a.label && a.label !== 'Amount' && a.label !== 'Item')
-  if (hasMeaningfulLabels) {
-    const labeled = amounts.filter((a) => a.label && a.label !== 'Amount' && a.label !== 'Item')
-    return labeled.slice(0, max)
-  }
-  return [...amounts]
-    .sort((a, b) => b.value - a.value)
-    .slice(0, max)
-}
-
-function DocumentAnalysisCard({
-  filename,
-  analysis,
-}: {
-  filename: string
-  analysis: DocumentAnalysis
-}) {
-  const confidenceStyles = {
-    high: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    medium: 'bg-amber-100 text-amber-800 border-amber-200',
-    low: 'bg-rose-100 text-rose-800 border-rose-200',
-  }
-  const amounts = analysis.extractedData.amounts ?? []
-  const keyAmounts = getKeyAmounts(amounts, 6)
-  const fmt = (n: number) =>
-    '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  return (
-    <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-        <div className="min-w-0">
-          <h4 className="font-semibold text-filingiq-blue truncate">{filename}</h4>
-          <p className="text-sm text-gray-500 mt-0.5">{analysis.documentType}</p>
-        </div>
-        <span
-          className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border ${confidenceStyles[analysis.confidence]}`}
-        >
-          {analysis.confidence} confidence
-        </span>
-      </div>
-
-      {/* Key details: tax year + main amounts highlighted for quick scan */}
-      <div className="mb-5 p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-100">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          {analysis.extractedData.year && (
-            <div>
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax year</span>
-              <p className="text-lg font-bold text-filingiq-blue mt-0.5">{analysis.extractedData.year}</p>
-            </div>
-          )}
-          {keyAmounts.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {keyAmounts.map((a, idx) => (
-                <div key={idx} className="bg-white/80 rounded-lg px-3 py-2 border border-slate-100 shadow-sm">
-                  <span className="text-xs text-gray-500 block">
-                    {a.label && a.label !== 'Amount' ? a.label : `Amount ${idx + 1}`}
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums text-gray-900">{fmt(a.value)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Analysis summary — main focus */}
-      {analysis.summary && (
-        <div className="mb-5">
-          <h4 className="text-sm font-semibold text-gray-800 mb-2">Analysis summary</h4>
-          <div className="text-sm text-gray-700 prose prose-sm max-w-none">
-            <SummaryBlock text={analysis.summary} />
-          </div>
-        </div>
-      )}
-
-      {/* Strategy notes — actionable recommendations */}
-      {analysis.notes && analysis.notes.length > 0 && (
-        <div className="pt-4 border-t border-gray-100">
-          <h4 className="text-sm font-semibold text-gray-800 mb-2">Strategy notes</h4>
-          <ul className="space-y-2">
-            {analysis.notes.map((note, idx) => (
-              <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                <span className="text-filingiq-blue mt-1.5 shrink-0 size-1.5 rounded-full bg-current" aria-hidden />
-                <span>{note}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
 }
 

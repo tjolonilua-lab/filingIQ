@@ -545,8 +545,8 @@ export default function StartPage() {
           {/* Step 5: AI Analysis Results (only if enabled) */}
           {currentStep === 5 && enableAIAnalysis && (
             <FormStep
-              title="Tax Strategy Insights"
-              description="AI-powered analysis has identified personalized tax strategies from your documents."
+              title="Quick snapshot"
+              description="A peek at what we're seeing—your preparer will deliver a full strategy after you submit."
             >
               <StrategyInsights
                 analyses={analysisResults}
