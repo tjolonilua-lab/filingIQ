@@ -187,7 +187,7 @@ export default function StartPage() {
     setAnalysisResults([])
 
     const filingType = watch('filingType')
-    const BATCH_SIZE = 3
+    const BATCH_SIZE = 1
     const batches: File[][] = []
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       batches.push(files.slice(i, i + BATCH_SIZE))
@@ -266,12 +266,12 @@ export default function StartPage() {
       // Prefer document refs from analyze (avoids 413). Send refs + only files for docs that have no ref.
       const hasDocumentRefs = enableAIAnalysis && analysisResults.length === files.length
       if (hasDocumentRefs) {
+        // Omit analysis from payload to stay under Vercel 4.5MB limit; server will re-analyze from stored refs
         const documentPayload = analysisResults.map((r) => ({
           filename: r.filename,
           urlOrPath: r.urlOrPath,
           size: r.size ?? 0,
           type: r.type ?? 'application/pdf',
-          analysis: r.analysis ?? undefined,
         }))
         formData.append('documents', JSON.stringify(documentPayload))
         const missingRefs = analysisResults.filter((r) => !r.urlOrPath)
