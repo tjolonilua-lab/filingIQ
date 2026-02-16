@@ -523,23 +523,62 @@ export default function StartPage() {
             </FormStep>
           )}
 
-          {/* Step 4: Document Upload */}
+          {/* Step 4: Document Upload (or analyzing overlay) */}
           {currentStep === 4 && (
-            <FormStep
-              title="Upload Your Tax Documents"
-              description="Upload your tax documents (W-2s, 1099s, receipts, etc.). Our AI will analyze them to identify personalized tax strategies."
-            >
-              <FileUpload
-                files={files}
-                onFilesChange={setFiles}
-                error={files.length === 0 ? 'Please upload at least one document' : undefined}
-              />
-              {files.length > 5 && (
-                <p className="mt-3 text-sm text-gray-500">
-                  Analyzing many documents may take up to a minute. Results are tailored to your filing status when you continue.
-                </p>
+            <>
+              {isAnalyzing ? (
+                <FormStep
+                  title="Analyzing your documents"
+                  description="Building your quick snapshot—usually 30–60 seconds."
+                >
+                  <div className="py-12 flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                    <div className="relative mb-8">
+                      <div
+                        className="w-20 h-20 rounded-full border-4 border-gray-200 border-t-filingiq-blue animate-spin"
+                        style={{ borderTopColor: primaryColor }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                    </div>
+                    <p className="text-lg font-medium text-gray-800 mb-2">
+                      Reviewing your W-2s, 1099s, and more
+                    </p>
+                    <p className="text-sm text-gray-500 mb-6">
+                      We're pulling out key numbers and spotting opportunities. You'll see a quick snapshot next.
+                    </p>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full animate-pulse"
+                        style={{
+                          width: '50%',
+                          backgroundColor: primaryColor,
+                          opacity: 0.6,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </FormStep>
+              ) : (
+                <FormStep
+                  title="Upload Your Tax Documents"
+                  description="Upload your tax documents (W-2s, 1099s, receipts, etc.). Our AI will analyze them to identify personalized tax strategies."
+                >
+                  <FileUpload
+                    files={files}
+                    onFilesChange={setFiles}
+                    error={files.length === 0 ? 'Please upload at least one document' : undefined}
+                  />
+                  {files.length > 5 && (
+                    <p className="mt-3 text-sm text-gray-500">
+                      Analyzing many documents may take up to a minute. Results are tailored to your filing status when you continue.
+                    </p>
+                  )}
+                </FormStep>
               )}
-            </FormStep>
+            </>
           )}
 
           {/* Step 5: AI Analysis Results (only if enabled) */}
