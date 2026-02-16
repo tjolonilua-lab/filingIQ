@@ -62,31 +62,59 @@ export const POST = withCorrelationId(async (request: NextRequest, correlationId
       return validationError('Invalid income information format')
     }
     
-    // Documents: either already-uploaded refs (from analyze step) or files to upload now
+    // Documents: refs (from analyze) and/or files for any missing refs (hybrid to avoid 413)
     const documentsJson = formData.get('documents') as string | null
+    const formFiles = formData.getAll('files') as File[]
     let uploadedDocuments: DocumentWithAnalysis[] = []
 
     if (documentsJson) {
       try {
-        const parsed = JSON.parse(documentsJson) as Array<{ filename: string; urlOrPath: string; size: number; type: string; analysis?: DocumentAnalysis | null }>
+        const parsed = JSON.parse(documentsJson) as Array<{ filename: string; urlOrPath?: string; size: number; type: string; analysis?: DocumentAnalysis | null }>
         if (!Array.isArray(parsed) || parsed.length === 0) {
           return validationError('Documents array is required when using document refs')
         }
-        uploadedDocuments = parsed.map((d) => ({
-          filename: d.filename,
-          urlOrPath: d.urlOrPath,
-          size: d.size,
-          type: d.type,
-          analysis: d.analysis ?? undefined,
-        }))
-        logger.info('Intake using pre-uploaded document refs', { count: uploadedDocuments.length })
+        let fileIndex = 0
+        for (const d of parsed) {
+          if (d.urlOrPath) {
+            uploadedDocuments.push({
+              filename: d.filename,
+              urlOrPath: d.urlOrPath,
+              size: d.size,
+              type: d.type,
+              analysis: d.analysis ?? undefined,
+            })
+          } else {
+            const file = formFiles[fileIndex++]
+            if (!file) {
+              return validationError(`Missing file for document: ${d.filename}`)
+            }
+            try {
+              const result = await storeUpload(file, file.name)
+              uploadedDocuments.push({
+                filename: file.name,
+                urlOrPath: result.urlOrPath,
+                size: file.size,
+                type: file.type,
+              })
+            } catch (error) {
+              logger.error(`Failed to upload file ${file.name}`, error as Error)
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+              return serverError(
+                errorMessage.includes('S3') || errorMessage.includes('configure')
+                  ? errorMessage
+                  : `Failed to upload file: ${file.name}. ${errorMessage}`
+              )
+            }
+          }
+        }
+        const refCount = parsed.filter((d) => d.urlOrPath).length
+        logger.info('Intake using document refs + uploads', { total: parsed.length, refs: refCount, uploaded: parsed.length - refCount })
       } catch (e) {
         logger.error('Invalid documents JSON', e as Error)
         return validationError('Invalid documents format')
       }
     } else {
-      const files = formData.getAll('files') as File[]
-      for (const file of files) {
+      for (const file of formFiles) {
         try {
           const result = await storeUpload(file, file.name)
           uploadedDocuments.push({

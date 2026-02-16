@@ -252,20 +252,22 @@ export default function StartPage() {
         otherIncome: data.otherIncome || '',
       }))
 
-      const canUseDocumentRefs = enableAIAnalysis && analysisResults.length === files.length && analysisResults.every((r) => r.urlOrPath)
-      if (canUseDocumentRefs) {
-        formData.append(
-          'documents',
-          JSON.stringify(
-            analysisResults.map((r) => ({
-              filename: r.filename,
-              urlOrPath: r.urlOrPath,
-              size: r.size ?? 0,
-              type: r.type ?? 'application/pdf',
-              analysis: r.analysis ?? undefined,
-            }))
-          )
-        )
+      // Prefer document refs from analyze (avoids 413). Send refs + only files for docs that have no ref.
+      const hasDocumentRefs = enableAIAnalysis && analysisResults.length === files.length
+      if (hasDocumentRefs) {
+        const documentPayload = analysisResults.map((r) => ({
+          filename: r.filename,
+          urlOrPath: r.urlOrPath,
+          size: r.size ?? 0,
+          type: r.type ?? 'application/pdf',
+          analysis: r.analysis ?? undefined,
+        }))
+        formData.append('documents', JSON.stringify(documentPayload))
+        const missingRefs = analysisResults.filter((r) => !r.urlOrPath)
+        for (const r of missingRefs) {
+          const file = files.find((f) => f.name === r.filename)
+          if (file) formData.append('files', file)
+        }
       } else {
         files.forEach((file) => formData.append('files', file))
       }
