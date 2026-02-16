@@ -127,6 +127,17 @@ export default function StartPage() {
       .catch(() => setEnableAIAnalysis(false))
   }, [])
 
+  // Clear stale 413 / "too large" error when we're in refs-only mode so user doesn't see red + green
+  const finalStep = enableAIAnalysis ? 5 : 4
+  const hasDocumentRefs = enableAIAnalysis && analysisResults.length === files.length
+  const missingRefs = hasDocumentRefs ? analysisResults.filter((r) => !r.urlOrPath) : []
+  const isRefsOnly = hasDocumentRefs && missingRefs.length === 0
+  useEffect(() => {
+    if (currentStep !== finalStep || !submitError || !isRefsOnly) return
+    const isSizeError = /too large|413|payload/i.test(submitError)
+    if (isSizeError) setSubmitError(null)
+  }, [currentStep, finalStep, submitError, isRefsOnly])
+
   const handleIncomeTypeChange = (type: string, checked: boolean) => {
     const current = watchedIncomeTypes
     const newValue = checked
@@ -679,8 +690,20 @@ export default function StartPage() {
           </div>
 
           {currentStep === (enableAIAnalysis ? 5 : 4) && files.length > 0 && (() => {
-            const totalSize = files.reduce((s, f) => s + f.size, 0)
-            const overLimit = totalSize > 4 * 1024 * 1024
+            const hasDocumentRefs = enableAIAnalysis && analysisResults.length === files.length
+            const filesToSend = hasDocumentRefs
+              ? analysisResults.filter((r) => !r.urlOrPath).map((r) => files.find((f) => f.name === r.filename)).filter(Boolean) as File[]
+              : files
+            const payloadSize = filesToSend.reduce((s, f) => s + f.size, 0)
+            const overLimit = payloadSize > 4 * 1024 * 1024
+            const refsOnly = hasDocumentRefs && filesToSend.length === 0
+            if (refsOnly) {
+              return (
+                <div className="mt-4 max-w-2xl mx-auto p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm">
+                  Submitting document references only (no file re-upload)—your submission is within size limits.
+                </div>
+              )
+            }
             return overLimit ? (
               <div className="mt-4 max-w-2xl mx-auto p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
                 Your total upload size is large. If submit fails, try fewer or smaller documents.
