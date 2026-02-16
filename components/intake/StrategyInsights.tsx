@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import type { DocumentAnalysis } from '@/lib/validation'
 
 interface StrategyInsightsProps {
@@ -150,6 +151,52 @@ function extractStrategies(analyses: Array<{ analysis: DocumentAnalysis | null }
   return unique
 }
 
+/** Render summary text with simple markdown (### ## ** and newlines) */
+function SummaryBlock({ text }: { text: string }) {
+  const parts: React.ReactNode[] = []
+  const lines = text.split(/\n/)
+  let key = 0
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      parts.push(<br key={key++} />)
+      continue
+    }
+    if (trimmed.startsWith('#### ')) {
+      parts.push(<h4 key={key++} className="text-sm font-semibold text-gray-900 mt-3 mb-1 first:mt-0">{formatInline(trimmed.slice(5))}</h4>)
+      continue
+    }
+    if (trimmed.startsWith('### ')) {
+      parts.push(<h3 key={key++} className="text-base font-semibold text-filingiq-blue mt-4 mb-1 first:mt-0">{formatInline(trimmed.slice(4))}</h3>)
+      continue
+    }
+    if (trimmed.startsWith('## ')) {
+      parts.push(<h3 key={key++} className="text-base font-semibold text-gray-900 mt-4 mb-1 first:mt-0">{formatInline(trimmed.slice(3))}</h3>)
+      continue
+    }
+    parts.push(<p key={key++} className="text-sm text-gray-700 leading-relaxed">{formatInline(trimmed)}</p>)
+  }
+  return <div className="space-y-0.5">{parts}</div>
+}
+
+function formatInline(s: string): React.ReactNode {
+  const out: React.ReactNode[] = []
+  let rest = s
+  let key = 0
+  while (rest.length > 0) {
+    const bold = rest.match(/\*\*([^*]+)\*\*/)
+    if (bold && bold.index !== undefined) {
+      if (bold.index > 0) out.push(<span key={key++}>{rest.slice(0, bold.index)}</span>)
+      out.push(<strong key={key++} className="font-semibold text-gray-900">{bold[1]}</strong>)
+      rest = rest.slice(bold.index + bold[0].length)
+    } else {
+      out.push(<span key={key++}>{rest}</span>)
+      break
+    }
+  }
+  return <>{out}</>
+}
+
 function DocumentAnalysisCard({
   filename,
   analysis,
@@ -157,64 +204,94 @@ function DocumentAnalysisCard({
   filename: string
   analysis: DocumentAnalysis
 }) {
-  const confidenceColors = {
-    high: 'bg-green-100 text-green-800',
-    medium: 'bg-yellow-100 text-yellow-800',
-    low: 'bg-red-100 text-red-800',
+  const confidenceStyles = {
+    high: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    medium: 'bg-amber-100 text-amber-800 border-amber-200',
+    low: 'bg-rose-100 text-rose-800 border-rose-200',
   }
+  const amounts = analysis.extractedData.amounts ?? []
+  const hasGenericLabels = amounts.length > 0 && amounts.every((a) => !a.label || a.label === 'Amount' || a.label === 'Item')
+  const maxAmountsVisible = 12
 
   return (
-    <div className="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h4 className="font-semibold text-filingiq-blue">{filename}</h4>
-          <p className="text-sm text-gray-600 mt-1">
-            {analysis.documentType}
-          </p>
+    <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-sm overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div className="min-w-0">
+          <h4 className="font-semibold text-filingiq-blue truncate">{filename}</h4>
+          <p className="text-sm text-gray-500 mt-0.5">{analysis.documentType}</p>
         </div>
         <span
-          className={`px-3 py-1 rounded-full text-xs font-medium ${confidenceColors[analysis.confidence]}`}
+          className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border ${confidenceStyles[analysis.confidence]}`}
         >
           {analysis.confidence} confidence
         </span>
       </div>
 
       {analysis.extractedData.year && (
-        <div className="mb-3">
-          <span className="text-sm font-medium text-gray-700">Tax Year: </span>
-          <span className="text-sm text-gray-900">{analysis.extractedData.year}</span>
+        <div className="flex items-center gap-2 mb-4 py-2 px-3 bg-gray-50 rounded-lg">
+          <span className="text-sm font-medium text-gray-500">Tax year</span>
+          <span className="text-sm font-semibold text-gray-900">{analysis.extractedData.year}</span>
         </div>
       )}
 
-      {analysis.extractedData.amounts && analysis.extractedData.amounts.length > 0 && (
-        <div className="mb-3">
-          <p className="text-sm font-medium text-gray-700 mb-2">Amounts Found:</p>
-          <div className="space-y-1">
-            {analysis.extractedData.amounts.map((amount, idx) => (
-              <div key={idx} className="flex justify-between text-sm">
-                <span className="text-gray-600">{amount.label}:</span>
-                <span className="font-medium text-gray-900">
-                  ${amount.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+      {amounts.length > 0 && (
+        <div className="mb-5">
+          <p className="text-sm font-semibold text-gray-700 mb-2">Amounts found</p>
+          <div className="rounded-lg border border-gray-200 overflow-hidden">
+            <div className="max-h-56 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="text-left py-2.5 px-3 font-medium text-gray-600">
+                      {hasGenericLabels ? '#' : 'Description'}
+                    </th>
+                    <th className="text-right py-2.5 px-3 font-medium text-gray-600">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {amounts.slice(0, maxAmountsVisible).map((amount, idx) => (
+                    <tr
+                      key={idx}
+                      className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+                    >
+                      <td className="py-2 px-3 text-gray-700">
+                        {hasGenericLabels ? idx + 1 : (amount.label || amount.description || '—')}
+                      </td>
+                      <td className="py-2 px-3 text-right font-medium tabular-nums text-gray-900">
+                        ${amount.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {amounts.length > maxAmountsVisible && (
+              <div className="py-2 px-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
+                + {amounts.length - maxAmountsVisible} more amount{amounts.length - maxAmountsVisible !== 1 ? 's' : ''}
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
 
       {analysis.summary && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <p className="text-sm font-medium text-gray-700 mb-1">Analysis Summary:</p>
-          <p className="text-sm text-gray-600">{analysis.summary}</p>
+        <div className="pt-5 border-t border-gray-100">
+          <p className="text-sm font-semibold text-gray-700 mb-2">Analysis summary</p>
+          <div className="text-sm text-gray-700 prose prose-sm max-w-none">
+            <SummaryBlock text={analysis.summary} />
+          </div>
         </div>
       )}
 
       {analysis.notes && analysis.notes.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <p className="text-sm font-medium text-gray-700 mb-1">Strategy Notes:</p>
-          <ul className="list-disc list-inside space-y-1">
+        <div className="mt-5 pt-5 border-t border-gray-100">
+          <p className="text-sm font-semibold text-gray-700 mb-2">Strategy notes</p>
+          <ul className="space-y-2">
             {analysis.notes.map((note, idx) => (
-              <li key={idx} className="text-sm text-gray-600">{note}</li>
+              <li key={idx} className="flex gap-2 text-sm text-gray-700">
+                <span className="text-filingiq-blue mt-1.5 shrink-0 size-1.5 rounded-full bg-current" aria-hidden />
+                <span>{note}</span>
+              </li>
             ))}
           </ul>
         </div>

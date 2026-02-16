@@ -17,6 +17,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "@sentry/nextjs": "^10.38.0",
     "@types/bcryptjs": "^2.4.6",
+    "ai": "^6.0.86",
     "bcryptjs": "^3.0.3",
     "dommatrix": "^0.1.1",
     "form-data": "^4.0.0",
