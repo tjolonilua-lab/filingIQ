@@ -172,38 +172,42 @@ export default function StartPage() {
     setIsAnalyzing(true)
     setAnalysisResults([])
 
+    const filingType = watch('filingType')
+    const BATCH_SIZE = 3
+    const batches: File[][] = []
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      batches.push(files.slice(i, i + BATCH_SIZE))
+    }
+
     try {
-      const formData = new FormData()
-      files.forEach((file) => {
-        formData.append('files', file)
-      })
-      formData.append('analyze', 'true')
-      const filingType = watch('filingType')
-      if (filingType) {
-        formData.append('filingInfo', JSON.stringify({ filingType }))
+      const allResults: Array<{ filename: string; analysis: DocumentAnalysis | null; error?: string }> = []
+
+      for (const batch of batches) {
+        const formData = new FormData()
+        batch.forEach((file) => formData.append('files', file))
+        formData.append('analyze', 'true')
+        if (filingType) {
+          formData.append('filingInfo', JSON.stringify({ filingType }))
+        }
+
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          body: formData,
+        })
+
+        const data = await response.json().catch(() => ({}))
+        const results = data.results ?? data.data?.results ?? []
+
+        if (!response.ok) {
+          const msg = data.error ?? data.message ?? (response.status === 413 ? 'Request too large (413). Documents are sent in batches; this batch failed.' : response.status === 504 ? 'Request timed out. Try again.' : `Analysis failed (${response.status}).`)
+          batch.forEach((file) => allResults.push({ filename: file.name, analysis: null, error: msg }))
+          continue
+        }
+
+        allResults.push(...(Array.isArray(results) ? results : []))
       }
 
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json().catch(() => ({}))
-      const results = data.results ?? data.data?.results ?? []
-
-      if (!response.ok) {
-        const msg = data.error ?? data.message ?? (response.status === 504 ? 'Request timed out. Try fewer documents or try again.' : `Analysis failed (${response.status}).`)
-        setAnalysisResults(
-          files.map((file) => ({
-            filename: file.name,
-            analysis: null,
-            error: msg,
-          }))
-        )
-        return
-      }
-
-      setAnalysisResults(Array.isArray(results) ? results : [])
+      setAnalysisResults(allResults)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Network or server error'
       setAnalysisResults(
