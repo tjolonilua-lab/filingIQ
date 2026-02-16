@@ -26,7 +26,8 @@ function ensureDOMMatrixPolyfill(): void {
  * Must run before getDocument. The worker module sets globalThis.pdfjsWorker when loaded.
  */
 async function ensurePdfjsWorkerLoaded(): Promise<void> {
-  if (globalThis.pdfjsWorker != null) return
+  const g = globalThis as { pdfjsWorker?: unknown }
+  if (g.pdfjsWorker != null) return
   try {
     await import('pdfjs-dist/legacy/build/pdf.worker.mjs')
   } catch {
