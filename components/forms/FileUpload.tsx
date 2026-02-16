@@ -99,6 +99,9 @@ export default function FileUpload({ files, onFilesChange, error }: FileUploadPr
           <p className="text-sm text-gray-500">
             PDF, JPG, or PNG (max 10MB per file)
           </p>
+          <p className="text-xs text-gray-400 mt-1">
+            For best AI analysis of photos/scans: use clear, flat images and avoid glare.
+          </p>
         </div>
       </div>
 

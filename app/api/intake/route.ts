@@ -14,6 +14,8 @@ import { withCorrelationId } from '@/lib/middleware/correlation'
 import { findAccountById } from '@/lib/accounts'
 import type { AnalysisResult, DocumentWithAnalysis } from '@/lib/types/submission'
 
+export const maxDuration = 60
+
 export const POST = withCorrelationId(async (request: NextRequest, correlationId: string) => {
   try {
     // Get account ID from query params or header
@@ -90,8 +92,8 @@ export const POST = withCorrelationId(async (request: NextRequest, correlationId
     
     if (enableAIAnalysis) {
       try {
-        logger.info('Starting AI document analysis', { documentCount: uploadedDocuments.length })
-        documentAnalyses = await analyzeDocuments(uploadedDocuments)
+        logger.info('Starting AI document analysis', { documentCount: uploadedDocuments.length, filingType: filingInfo.filingType })
+        documentAnalyses = await analyzeDocuments(uploadedDocuments, { filingType: filingInfo.filingType })
         
         // Attach analysis results to documents
         uploadedDocuments.forEach((doc, index) => {

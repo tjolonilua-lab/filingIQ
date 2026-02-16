@@ -4,7 +4,13 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { logger } from './logger'
 import { getS3ObjectBuffer } from './upload'
-import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './constants'
+import {
+  OPENAI_DEFAULT_MODEL,
+  OPENAI_MAX_TOKENS,
+  OPENAI_TEMPERATURE,
+  MAX_EXTRACTED_TEXT_CHARS,
+  ANALYSIS_CONCURRENCY,
+} from './constants'
 
 // DocumentAnalysis type is imported from validation
 
@@ -35,9 +41,11 @@ async function ensurePdfjsWorkerLoaded(): Promise<void> {
   }
 }
 
+const PDF_MAX_PAGES_TO_EXTRACT = 10
+
 /**
- * Extract text from the first page of a PDF buffer using pdfjs (no canvas/rendering).
- * Avoids "path" errors from pdf-to-img in serverless.
+ * Extract text from a PDF buffer using pdfjs (no canvas/rendering).
+ * Reads up to PDF_MAX_PAGES_TO_EXTRACT pages so multi-page forms (e.g. 1098, W-2 copy 2) are fully captured.
  */
 async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   ensureDOMMatrixPolyfill()
@@ -45,12 +53,37 @@ async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const data = new Uint8Array(buffer)
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
-  const page = await doc.getPage(1)
-  const content = await page.getTextContent()
-  const text = (content.items as { str?: string }[])
-    .map((item) => item.str ?? '')
-    .join(' ')
-  return text.trim() || '(No text extracted from PDF)'
+  const numPages = Math.min(doc.numPages, PDF_MAX_PAGES_TO_EXTRACT)
+  const parts: string[] = []
+  for (let i = 1; i <= numPages; i++) {
+    const page = await doc.getPage(i)
+    const content = await page.getTextContent()
+    const text = (content.items as { str?: string }[])
+      .map((item) => item.str ?? '')
+      .join(' ')
+    if (text.trim()) parts.push(numPages > 1 ? `[Page ${i}]\n${text.trim()}` : text.trim())
+  }
+  const raw = parts.length > 0 ? parts.join('\n\n') : '(No text extracted from PDF)'
+  return compressExtractedText(raw)
+}
+
+/**
+ * Reduce token use: drop consecutive duplicate lines (common in form PDFs), normalize whitespace, cap length.
+ */
+function compressExtractedText(text: string): string {
+  const lines = text.split(/\n/)
+  const deduped: string[] = []
+  let prev = ''
+  for (const line of lines) {
+    const t = line.trim()
+    if (t && t !== prev) {
+      deduped.push(t)
+      prev = t
+    }
+  }
+  const joined = deduped.join('\n').replace(/\s+/g, ' ').trim()
+  if (joined.length <= MAX_EXTRACTED_TEXT_CHARS) return joined
+  return joined.slice(0, MAX_EXTRACTED_TEXT_CHARS) + ' [... truncated]'
 }
 
 /**
@@ -125,10 +158,11 @@ Extract:
 1. Document type (W-2, 1099-NEC, 1099-K, 1099-INT, 1099-DIV, Schedule C, etc.)
 2. Tax year
 3. All monetary amounts with clear labels (e.g. "Wages, tips, other compensation", "Federal income tax withheld", "Social security tax withheld", "Medicare tax withheld", "State wages", "State income tax withheld")
-4. Employer/payer name
-5. Recipient/taxpayer name and SSN (mask SSN for privacy, show last 4 digits only)
-6. Important dates
-7. Any other relevant tax information
+4. For W-2s: Box 12 codes and amounts (e.g. Code D = 401(k) deferral, Code AA = 401(k) elective deferral, Code DD = 401(k) catch-up). Include these in extractedData.amounts with labels like "Box 12 Code D - 401(k) deferral" so strategies reference actual contribution data.
+5. Employer/payer name
+6. Recipient/taxpayer name and SSN (mask SSN for privacy, show last 4 digits only)
+7. Important dates
+8. Any other relevant tax information
 
 Then identify potential tax strategies based on the data:
 - Retirement contribution opportunities (401k, IRA, SEP-IRA, etc.)
@@ -145,21 +179,29 @@ Return a structured analysis (JSON when possible) with:
 - summary: 2–4 sentences that explicitly state the tax year and the main monetary figures (e.g. wages, federal tax withheld, Social Security withheld). Lead with the document type and tax year, then highlight key dollar amounts.
 - notes: 2–5 actionable strategy bullets based on this document. Each note should be one clear sentence (e.g. "Maximize 401(k) contributions to reduce taxable wages." or "Review estimated tax payments to avoid underpayment penalties."). Do not include a generic "may need manual review" note unless you have no specific strategies to suggest.
 
-Focus on strategies that can meaningfully reduce tax liability. Be specific about dollar amounts and potential savings where possible.`
+Focus on strategies that can meaningfully reduce tax liability. Be specific about dollar amounts and potential savings where possible. Keep summary and notes concise to minimize tokens.`
 
 /**
  * Analyze a document from extracted text (used for PDFs to avoid image conversion).
+ * @param intakeContext - Optional filing context (e.g. "Married Filing Separately") so the model can tailor strategies.
  */
-async function analyzeDocumentFromText(extractedText: string, filename: string): Promise<DocumentAnalysis | null> {
+async function analyzeDocumentFromText(
+  extractedText: string,
+  filename: string,
+  intakeContext?: string
+): Promise<DocumentAnalysis | null> {
   const openai = getOpenAIClient()
   if (!openai) return null
+  const contextBlock = intakeContext
+    ? `\n\nFiling context: The taxpayer is filing as "${intakeContext}". Tailor strategies and notes for this status (e.g. for Married Filing Separately: IRA deduction limits, phase-outs, and state-specific considerations).`
+    : ''
   try {
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || OPENAI_DEFAULT_MODEL,
       messages: [
         {
           role: 'user',
-          content: `${TAX_ANALYSIS_PROMPT}\n\n---\nExtracted text from "${filename}":\n\n${extractedText}`,
+          content: `${TAX_ANALYSIS_PROMPT}${contextBlock}\n\n---\nExtracted text from "${filename}":\n\n${extractedText}`,
         },
       ],
       max_tokens: OPENAI_MAX_TOKENS,
@@ -290,109 +332,107 @@ function parseAnalysisResponse(
   }
 }
 
+const MAX_IMAGE_SIZE_FOR_ANALYSIS = 8 * 1024 * 1024 // 8MB
+
+export type AnalyzeDocumentsOptions = {
+  /** Filing status (e.g. "Married Filing Separately") so the model can tailor strategies. */
+  filingType?: string
+}
+
 /**
- * Analyzes multiple tax documents using OpenAI Vision API
- * 
- * Processes multiple documents, downloading from S3 if needed, and analyzes
- * each one to extract tax information and identify optimization strategies.
- * 
- * @param documents - Array of document objects with filename, urlOrPath, and type
- * @returns Array of analysis results, one per document
- * 
- * @example
- * ```typescript
- * const results = await analyzeDocuments([
- *   { filename: 'w2.pdf', urlOrPath: 'https://s3.../w2.pdf', type: 'application/pdf' }
- * ])
- * ```
+ * Process a single document: fetch buffer, then analyze (PDF text or image Vision).
  */
-export async function analyzeDocuments(
-  documents: Array<{ filename: string; urlOrPath: string; type: string }>
-): Promise<AnalysisResult[]> {
-  const results: AnalysisResult[] = []
+async function processOneDocument(
+  doc: { filename: string; urlOrPath: string; type: string },
+  options?: AnalyzeDocumentsOptions
+): Promise<AnalysisResult> {
+  try {
+    let fileBuffer: Buffer
+    let mimeType = doc.type
 
-  for (const doc of documents) {
-    try {
-      let fileBuffer: Buffer
-      let mimeType = doc.type
-      
-      if (doc.urlOrPath.startsWith('http')) {
-        // S3 URL: use AWS credentials to download (bucket is private; fetch() would get 403)
-        const isS3Url = doc.urlOrPath.includes('.s3.') && doc.urlOrPath.includes('amazonaws.com')
-        try {
-          if (isS3Url) {
-            const { buffer, contentType } = await getS3ObjectBuffer(doc.urlOrPath)
-            fileBuffer = buffer
-            if (contentType) mimeType = contentType
-          } else {
-            const response = await fetch(doc.urlOrPath)
-            if (!response.ok) {
-              throw new Error(`Failed to download file: ${response.statusText}`)
-            }
-            const arrayBuffer = await response.arrayBuffer()
-            fileBuffer = Buffer.from(arrayBuffer)
-            const contentType = response.headers.get('content-type')
-            if (contentType) mimeType = contentType
-          }
-        } catch (error) {
-          results.push({
-            filename: doc.filename,
-            analysis: null,
-            error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          })
-          continue
-        }
+    if (doc.urlOrPath.startsWith('http')) {
+      const isS3Url = doc.urlOrPath.includes('.s3.') && doc.urlOrPath.includes('amazonaws.com')
+      if (isS3Url) {
+        const { buffer, contentType } = await getS3ObjectBuffer(doc.urlOrPath)
+        fileBuffer = buffer
+        if (contentType) mimeType = contentType
       } else {
-        // Local file path
-        const filePath = join(process.cwd(), doc.urlOrPath.replace(/^\/uploads\//, 'uploads/'))
-        fileBuffer = await readFile(filePath)
+        const response = await fetch(doc.urlOrPath)
+        if (!response.ok) throw new Error(`Failed to download file: ${response.statusText}`)
+        const arrayBuffer = await response.arrayBuffer()
+        fileBuffer = Buffer.from(arrayBuffer)
+        const ct = response.headers.get('content-type')
+        if (ct) mimeType = ct
       }
+    } else {
+      const filePath = join(process.cwd(), doc.urlOrPath.replace(/^\/uploads\//, 'uploads/'))
+      fileBuffer = await readFile(filePath)
+    }
 
-      // PDF: extract text and analyze with chat (no image conversion; avoids path/canvas errors in serverless)
-      if (mimeType === 'application/pdf') {
-        try {
-          const extractedText = await extractTextFromPdfBuffer(fileBuffer)
-          const analysis = await analyzeDocumentFromText(extractedText, doc.filename)
-          results.push({
-            filename: doc.filename,
-            analysis,
-            ...(analysis === null && {
-              error: 'AI analysis skipped (OpenAI not configured). Set OPENAI_API_KEY in Vercel for Production and Preview and redeploy.',
-            }),
-          })
-        } catch (pdfError) {
-          logger.error('PDF analysis failed', pdfError as Error, { filename: doc.filename })
-          results.push({
-            filename: doc.filename,
-            analysis: null,
-            error: `Could not analyze PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
-          })
-        }
-        continue
-      }
+    const intakeContext = options?.filingType ?? undefined
 
-      // Convert buffer to base64 for OpenAI Vision (images only)
-      const base64Image = fileBuffer.toString('base64')
-      const imageFormat: 'png' | 'jpeg' = mimeType.includes('png') ? 'png' : 'jpeg'
-
-      // Analyze the document using base64 data
-      const analysis = await analyzeDocumentFromBuffer(base64Image, doc.filename, imageFormat)
-      results.push({
+    if (mimeType === 'application/pdf') {
+      const extractedText = await extractTextFromPdfBuffer(fileBuffer)
+      const analysis = await analyzeDocumentFromText(extractedText, doc.filename, intakeContext)
+      return {
         filename: doc.filename,
         analysis,
         ...(analysis === null && {
           error: 'AI analysis skipped (OpenAI not configured). Set OPENAI_API_KEY in Vercel for Production and Preview and redeploy.',
         }),
-      })
-    } catch (error) {
-      results.push({
+      }
+    }
+
+    if (fileBuffer.length > MAX_IMAGE_SIZE_FOR_ANALYSIS) {
+      return {
         filename: doc.filename,
         analysis: null,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
+        error: 'Image is too large for AI analysis (max 8MB). Please compress or use a smaller file.',
+      }
+    }
+
+    const base64Image = fileBuffer.toString('base64')
+    const imageFormat: 'png' | 'jpeg' = mimeType.includes('png') ? 'png' : 'jpeg'
+    const analysis = await analyzeDocumentFromBuffer(base64Image, doc.filename, imageFormat)
+    return {
+      filename: doc.filename,
+      analysis,
+      ...(analysis === null && {
+        error: 'AI analysis skipped (OpenAI not configured). Set OPENAI_API_KEY in Vercel for Production and Preview and redeploy.',
+      }),
+    }
+  } catch (error) {
+    logger.error('Document analysis failed', error as Error, { filename: doc.filename })
+    return {
+      filename: doc.filename,
+      analysis: null,
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
+}
 
+/**
+ * Analyzes multiple tax documents using OpenAI Vision API
+ *
+ * Processes documents in parallel (up to ANALYSIS_CONCURRENCY at a time) to avoid timeouts with many files.
+ * Pass filingType (e.g. "Married Filing Separately") so strategies are tailored to the taxpayer's status.
+ *
+ * @param documents - Array of document objects with filename, urlOrPath, and type
+ * @param options - Optional filing context (filingType) for strategy tailoring
+ * @returns Array of analysis results, one per document (order preserved)
+ */
+export async function analyzeDocuments(
+  documents: Array<{ filename: string; urlOrPath: string; type: string }>,
+  options?: AnalyzeDocumentsOptions
+): Promise<AnalysisResult[]> {
+  if (documents.length === 0) return []
+
+  const results: AnalysisResult[] = []
+  for (let i = 0; i < documents.length; i += ANALYSIS_CONCURRENCY) {
+    const chunk = documents.slice(i, i + ANALYSIS_CONCURRENCY)
+    const chunkResults = await Promise.all(chunk.map((doc) => processOneDocument(doc, options)))
+    results.push(...chunkResults)
+  }
   return results
 }
 

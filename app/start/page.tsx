@@ -178,6 +178,10 @@ export default function StartPage() {
         formData.append('files', file)
       })
       formData.append('analyze', 'true')
+      const filingType = watch('filingType')
+      if (filingType) {
+        formData.append('filingInfo', JSON.stringify({ filingType }))
+      }
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -517,6 +521,11 @@ export default function StartPage() {
                 onFilesChange={setFiles}
                 error={files.length === 0 ? 'Please upload at least one document' : undefined}
               />
+              {files.length > 5 && (
+                <p className="mt-3 text-sm text-gray-500">
+                  Analyzing many documents may take up to a minute. Results are tailored to your filing status when you continue.
+                </p>
+              )}
             </FormStep>
           )}
 
