@@ -10,11 +10,23 @@ import { OPENAI_DEFAULT_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE } from './c
 
 import type { AnalysisResult } from './types/submission'
 
+/** Ensure DOMMatrix is defined for pdfjs in Node/serverless (pdfjs uses it even for text extraction) */
+function ensureDOMMatrixPolyfill(): void {
+  if (typeof globalThis.DOMMatrix !== 'undefined') return
+  try {
+    const dm = require('dommatrix')
+    globalThis.DOMMatrix = dm.default ?? dm
+  } catch {
+    // optional
+  }
+}
+
 /**
  * Extract text from the first page of a PDF buffer using pdfjs (no canvas/rendering).
- * Avoids "path" and DOMMatrix errors from pdf-to-img in serverless.
+ * Avoids "path" errors from pdf-to-img in serverless.
  */
 async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
+  ensureDOMMatrixPolyfill()
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const data = new Uint8Array(buffer)
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
