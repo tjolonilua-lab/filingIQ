@@ -36,6 +36,7 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
   const successful = analyses.filter((a) => a.analysis)
   const strategies = extractStrategies(successful)
   const hasNoSuccessfulAnalysis = successful.length === 0 && analyses.length > 0
+  const firstError = hasNoSuccessfulAnalysis && analyses[0]?.error ? analyses[0].error : null
 
   return (
     <div className="space-y-6">
@@ -43,8 +44,13 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
           <p className="font-medium">Your document{analyses.length !== 1 ? 's were' : ' was'} received.</p>
           <p className="text-sm mt-1">
-            AI analysis is not available for this submission (e.g. not configured or temporarily unavailable). You can still submit your intake—your documents will be reviewed by your tax preparer.
+            AI analysis is not available for this submission. You can still submit your intake—your documents will be reviewed by your tax preparer.
           </p>
+          {firstError && (
+            <p className="text-sm mt-2 font-mono bg-amber-100/80 rounded px-2 py-1 break-words">
+              Reason: {firstError}
+            </p>
+          )}
         </div>
       )}
 

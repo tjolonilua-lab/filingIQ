@@ -58,7 +58,7 @@ export const OPENAI_TEMPERATURE = 0.1
 export const OPENAI_DEFAULT_MODEL = 'gpt-4o'
 /** Cap extracted PDF text to limit tokens (~4 chars/token). 12k chars ≈ 3k tokens. Set OPENAI_MODEL=gpt-4o-mini for faster/cheaper analysis. */
 export const MAX_EXTRACTED_TEXT_CHARS = 12_000
-/** How many documents to analyze in parallel. 4–5 may hit rate limits under load. */
+/** How many documents to analyze in parallel. Pro (60s timeout) can handle 4; Hobby (10s) may need 2. */
 export const ANALYSIS_CONCURRENCY = 4
 
 // API Response Messages

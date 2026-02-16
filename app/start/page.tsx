@@ -188,20 +188,29 @@ export default function StartPage() {
         body: formData,
       })
 
+      const data = await response.json().catch(() => ({}))
+      const results = data.results ?? data.data?.results ?? []
+
       if (!response.ok) {
-        throw new Error('Analysis failed')
+        const msg = data.error ?? data.message ?? (response.status === 504 ? 'Request timed out. Try fewer documents or try again.' : `Analysis failed (${response.status}).`)
+        setAnalysisResults(
+          files.map((file) => ({
+            filename: file.name,
+            analysis: null,
+            error: msg,
+          }))
+        )
+        return
       }
 
-      const data = await response.json()
-      const results = data.results ?? data.data?.results ?? []
       setAnalysisResults(Array.isArray(results) ? results : [])
     } catch (error) {
-      // Analysis error - non-critical, user can still submit
+      const message = error instanceof Error ? error.message : 'Network or server error'
       setAnalysisResults(
         files.map((file) => ({
           filename: file.name,
           analysis: null,
-          error: 'Analysis failed. You can still submit your documents.',
+          error: message.includes('fetch') || message.includes('Network') ? 'Connection failed. You can still submit your documents.' : `${message}. You can still submit your documents.`,
         }))
       )
     } finally {
