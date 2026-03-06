@@ -242,6 +242,53 @@ export async function analyzeDocument(
   }
 }
 
+const CONFIDENCE_LEVELS = ['high', 'medium', 'low'] as const
+type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number]
+
+function normalizeConfidence(v: unknown): ConfidenceLevel {
+  if (typeof v === 'string' && CONFIDENCE_LEVELS.includes(v as ConfidenceLevel)) return v as ConfidenceLevel
+  if (typeof v === 'number') {
+    if (v >= 0.8) return 'high'
+    if (v >= 0.5) return 'medium'
+    return 'low'
+  }
+  return 'medium'
+}
+
+function normalizeExtractedData(raw: unknown): DocumentAnalysis['extractedData'] {
+  if (!raw || typeof raw !== 'object') return { year: undefined, amounts: undefined, dates: undefined }
+  const o = raw as Record<string, unknown>
+  const year = o.year != null ? String(o.year) : undefined
+  const amounts = Array.isArray(o.amounts)
+    ? o.amounts.map((a: unknown) => {
+        const item = a && typeof a === 'object' ? (a as Record<string, unknown>) : {}
+        return {
+          label: item.label != null ? String(item.label) : 'Amount',
+          value: typeof item.value === 'number' ? item.value : Number(item.value) || 0,
+          description: item.description != null ? String(item.description) : undefined,
+        }
+      })
+    : undefined
+  const dates = Array.isArray(o.dates)
+    ? o.dates.map((d: unknown) => {
+        const item = d && typeof d === 'object' ? (d as Record<string, unknown>) : {}
+        return {
+          label: item.label != null ? String(item.label) : '',
+          value: item.value != null ? String(item.value) : '',
+        }
+      })
+    : undefined
+  return {
+    year,
+    amounts,
+    dates,
+    employer: o.employer != null ? String(o.employer) : undefined,
+    payer: o.payer != null ? String(o.payer) : undefined,
+    recipient: o.recipient != null ? String(o.recipient) : undefined,
+    other: o.other && typeof o.other === 'object' ? (o.other as Record<string, string | number>) : undefined,
+  }
+}
+
 /**
  * Parses OpenAI's text response into structured DocumentAnalysis
  */
@@ -271,14 +318,14 @@ function parseAnalysisResponse(
     }
   }
 
-  // If we have structured data, use it
+  // If we have structured data, use it (normalize so LLM numbers become schema-expected types)
   if (parsed && typeof parsed === 'object') {
     return {
-      documentType: parsed.documentType || 'Unknown',
-      confidence: parsed.confidence || 'medium',
-      extractedData: parsed.extractedData || {},
-      summary: parsed.summary || responseText.substring(0, 200),
-      notes: parsed.notes || [],
+      documentType: typeof parsed.documentType === 'string' ? parsed.documentType : 'Unknown',
+      confidence: normalizeConfidence(parsed.confidence),
+      extractedData: normalizeExtractedData(parsed.extractedData),
+      summary: typeof parsed.summary === 'string' ? parsed.summary : responseText.substring(0, 200),
+      notes: Array.isArray(parsed.notes) ? parsed.notes.map((n: unknown) => String(n)) : [],
     }
   }
 
