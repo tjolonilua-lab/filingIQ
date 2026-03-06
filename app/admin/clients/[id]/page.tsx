@@ -235,15 +235,6 @@ export default function ClientDetailPage() {
                         <p className="text-sm text-gray-400">
                           {(doc.size / 1024).toFixed(1)} KB • {doc.type}
                         </p>
-                        {doc.analysis && (
-                          <div className="mt-3 pt-3 border-t border-filingiq-cyan/20">
-                            <p className="text-xs text-filingiq-cyan mb-1">AI Analysis:</p>
-                            <p className="text-sm text-gray-300">{doc.analysis.documentType}</p>
-                            {doc.analysis.summary && (
-                              <p className="text-xs text-gray-400 mt-2">{doc.analysis.summary.substring(0, 150)}...</p>
-                            )}
-                          </div>
-                        )}
                       </div>
                       <button
                         onClick={() => handleDownload(doc)}
@@ -343,23 +334,88 @@ function extractStrategies(client: IntakeSubmission): Array<{
   }]
 }
 
+const INCOME_AMOUNT_LABELS = /wage|tip|compensation|gross income|receipts|interest income|dividend|rental income|income(?! tax)/i
+const TAX_PAID_LABELS = /tax withheld|withholding|federal income tax|state income tax|social security|medicare(?! wages)/i
+
+function sumIncomeFromDocs(documents: IntakeSubmission['documents']): number {
+  let total = 0
+  documents.forEach((d) => {
+    d.analysis?.extractedData?.amounts?.forEach((a) => {
+      if (INCOME_AMOUNT_LABELS.test(a.label) && typeof a.value === 'number') total += a.value
+    })
+  })
+  return total
+}
+
+function sumTaxPaidFromDocs(documents: IntakeSubmission['documents']): number {
+  let total = 0
+  documents.forEach((d) => {
+    d.analysis?.extractedData?.amounts?.forEach((a) => {
+      if (TAX_PAID_LABELS.test(a.label) && typeof a.value === 'number') total += a.value
+    })
+  })
+  return total
+}
+
+function getTaxYearFromDocs(documents: IntakeSubmission['documents']): string | null {
+  for (const d of documents) {
+    const year = d.analysis?.extractedData?.year
+    if (year != null && String(year).trim() !== '') return String(year)
+  }
+  for (const d of documents) {
+    const summary = d.analysis?.summary
+    if (!summary) continue
+    const match = summary.match(/(?:tax year|year)\s+(\d{4})/i)
+    if (match?.[1]) return match[1]
+  }
+  return null
+}
+
+/** Fallback: parse dollar amounts from summary (e.g. "totaling $48,938.20") when extractedData.amounts is empty */
+function fallbackIncomeFromSummaries(documents: IntakeSubmission['documents']): number {
+  let total = 0
+  documents.forEach((d) => {
+    const summary = d.analysis?.summary
+    if (!summary) return
+    const matches = summary.match(/\$[\d,]+\.?\d*/g)
+    if (matches && matches.length > 0) {
+      const parsed = matches.map((m) => parseFloat(m.replace(/[$,]/g, ''))).filter((n) => !isNaN(n) && n > 100)
+      if (parsed.length > 0) total += Math.max(...parsed)
+    }
+  })
+  return total
+}
+
 function calculateMetrics(client: IntakeSubmission): Array<{
   label: string
   value: string | number
   trend?: 'up' | 'down' | 'neutral'
   change?: string
 }> {
-  const totalIncome = client.documents
-    .flatMap(d => d.analysis?.extractedData.amounts || [])
-    .reduce((sum, a) => sum + a.value, 0)
-
+  let totalIncome = sumIncomeFromDocs(client.documents)
+  if (totalIncome === 0) totalIncome = fallbackIncomeFromSummaries(client.documents)
+  const totalTaxPaid = sumTaxPaidFromDocs(client.documents)
+  const taxYear = getTaxYearFromDocs(client.documents)
   const documentCount = client.documents.length
   const analyzedCount = client.documents.filter(d => d.analysis).length
+
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)
 
   return [
     {
       label: 'Total Income',
-      value: `$${totalIncome.toLocaleString()}`,
+      value: totalIncome > 0 ? formatCurrency(totalIncome) : '$0',
+      trend: 'neutral',
+    },
+    {
+      label: 'Total Tax Paid',
+      value: totalTaxPaid > 0 ? formatCurrency(totalTaxPaid) : '$0',
+      trend: 'neutral',
+    },
+    {
+      label: 'Tax Year',
+      value: taxYear || 'N/A',
       trend: 'neutral',
     },
     {
@@ -371,11 +427,6 @@ function calculateMetrics(client: IntakeSubmission): Array<{
       label: 'Strategies',
       value: extractStrategies(client).length,
       trend: 'up',
-    },
-    {
-      label: 'Tax Year',
-      value: client.documents[0]?.analysis?.extractedData.year || 'N/A',
-      trend: 'neutral',
     },
   ]
 }
