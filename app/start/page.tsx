@@ -266,12 +266,14 @@ export default function StartPage() {
       // Prefer document refs from analyze (avoids 413). Send refs + only files for docs that have no ref.
       const hasDocumentRefs = enableAIAnalysis && analysisResults.length === files.length
       if (hasDocumentRefs) {
-        // Omit analysis from payload to stay under Vercel 4.5MB limit; server will re-analyze from stored refs
+        // For small doc count, include analysis so server keeps it (avoids re-analysis failing for one doc). Otherwise omit to stay under 4.5MB.
+        const includeAnalysis = analysisResults.length <= 3
         const documentPayload = analysisResults.map((r) => ({
           filename: r.filename,
           urlOrPath: r.urlOrPath,
           size: r.size ?? 0,
           type: r.type ?? 'application/pdf',
+          ...(includeAnalysis && r.analysis != null ? { analysis: r.analysis } : {}),
         }))
         formData.append('documents', JSON.stringify(documentPayload))
         const missingRefs = analysisResults.filter((r) => !r.urlOrPath)
