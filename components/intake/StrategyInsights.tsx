@@ -9,6 +9,41 @@ interface StrategyInsightsProps {
     error?: string
   }>
   isLoading?: boolean
+  /** Client name from intake (Step 1) for the high-level snapshot */
+  clientName?: string
+}
+
+/** Sum amounts that look like income (wages, compensation, etc.) */
+function sumIncome(analyses: Array<{ analysis: DocumentAnalysis | null }>): number {
+  const incomeKeywords = /wage|tip|compensation|gross income|receipts|interest income|dividend|rental income|income(?! tax)/i
+  let total = 0
+  analyses.forEach(({ analysis }) => {
+    analysis?.extractedData?.amounts?.forEach((a) => {
+      if (incomeKeywords.test(a.label) && typeof a.value === 'number') total += a.value
+    })
+  })
+  return total
+}
+
+/** Sum amounts that look like tax paid (withholding) */
+function sumTaxPaid(analyses: Array<{ analysis: DocumentAnalysis | null }>): number {
+  const taxKeywords = /tax withheld|withholding|federal income tax|state income tax|social security|medicare(?! wages)/i
+  let total = 0
+  analyses.forEach(({ analysis }) => {
+    analysis?.extractedData?.amounts?.forEach((a) => {
+      if (taxKeywords.test(a.label) && typeof a.value === 'number') total += a.value
+    })
+  })
+  return total
+}
+
+/** First tax year found across analyses */
+function getTaxYear(analyses: Array<{ analysis: DocumentAnalysis | null }>): string | null {
+  for (const { analysis } of analyses) {
+    const year = analysis?.extractedData?.year
+    if (year != null && String(year).trim() !== '') return String(year)
+  }
+  return null
 }
 
 /** Build a short label of document types we saw (e.g. "W-2s, 1099-K, 1098") for the snapshot. */
@@ -24,7 +59,11 @@ function getDocumentTypesSummary(analyses: Array<{ analysis: DocumentAnalysis | 
   return list.slice(0, -1).join(', ') + ', and ' + list[list.length - 1]
 }
 
-export default function StrategyInsights({ analyses, isLoading }: StrategyInsightsProps) {
+function formatCurrency(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)
+}
+
+export default function StrategyInsights({ analyses, isLoading, clientName }: StrategyInsightsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -51,8 +90,27 @@ export default function StrategyInsights({ analyses, isLoading }: StrategyInsigh
   const firstError = hasNoSuccessfulAnalysis && analyses[0]?.error ? analyses[0].error : null
   const docTypesSummary = getDocumentTypesSummary(successful)
 
+  const totalIncome = sumIncome(successful)
+  const totalTaxPaid = sumTaxPaid(successful)
+  const taxYear = getTaxYear(successful)
+
   return (
     <div className="space-y-6">
+      {/* High-level snapshot: name, income, tax year, tax paid */}
+      <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-4">At a glance</h3>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <dt className="text-sm text-gray-500">Name</dt>
+          <dd className="text-gray-900 font-medium">{clientName?.trim() || '—'}</dd>
+          <dt className="text-sm text-gray-500">Tax year</dt>
+          <dd className="text-gray-900 font-medium">{taxYear || '—'}</dd>
+          <dt className="text-sm text-gray-500">Total income (from docs)</dt>
+          <dd className="text-gray-900 font-medium">{totalIncome > 0 ? formatCurrency(totalIncome) : '—'}</dd>
+          <dt className="text-sm text-gray-500">Total tax paid (from docs)</dt>
+          <dd className="text-gray-900 font-medium">{totalTaxPaid > 0 ? formatCurrency(totalTaxPaid) : '—'}</dd>
+        </dl>
+      </div>
+
       {/* Snapshot: one line + reassurance */}
       <div className="rounded-xl bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-200 p-5">
         <p className="text-gray-800 font-medium">
