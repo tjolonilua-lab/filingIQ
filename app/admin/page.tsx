@@ -1,39 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { FilingIQLogo, AdminSidebar, ClientsView, SettingsView, FormBuilderView } from '@/components'
+import { useState, useEffect, useCallback } from 'react'
+import { FilingIQLogo, AdminSidebar, ClientsView, SettingsView, FormBuilderView, DashboardView } from '@/components'
 import type { IntakeSubmission } from '@/lib/validation'
 
 export default function AdminPage() {
-  const [activeView, setActiveView] = useState<'form-builder' | 'clients' | 'settings'>('form-builder')
+  const [activeView, setActiveView] = useState<'dashboard' | 'form-builder' | 'clients' | 'settings'>('dashboard')
   const [submissions, setSubmissions] = useState<Array<IntakeSubmission & { id: string }>>([])
   const [loading, setLoading] = useState(false)
   const [authenticated, setAuthenticated] = useState(false)
   const [accountId, setAccountId] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Check if user is logged in
-    const checkAuth = () => {
-      const storedAccountId = localStorage.getItem('account_id')
-      if (storedAccountId) {
-        setAccountId(storedAccountId)
-        setAuthenticated(true)
-        if (activeView === 'clients') {
-          fetchSubmissions()
-        }
-      } else {
-        // Redirect to login if not authenticated
-        window.location.href = '/login'
-      }
-    }
-    
-    // Small delay to ensure localStorage is available
-    checkAuth()
-  }, [activeView])
-
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     if (!accountId) return
-    
     setLoading(true)
     try {
       const response = await fetch('/api/submissions', {
@@ -42,26 +21,34 @@ export default function AdminPage() {
           'X-Account-Id': accountId,
         },
       })
-
       const data = await response.json()
-      // Handle both response formats: data.submissions (direct) or data.data.submissions (nested)
-      const submissions = data.submissions || data.data?.submissions
+      const list = data.submissions || data.data?.submissions
       if (data.success) {
-        setSubmissions(submissions || [])
+        setSubmissions(list || [])
       }
-    } catch (error) {
+    } catch {
       // Error fetching submissions - handled by loading state
     } finally {
       setLoading(false)
     }
-  }
+  }, [accountId])
 
-  // Fetch submissions when switching to clients view
   useEffect(() => {
-    if (activeView === 'clients' && accountId && submissions.length === 0) {
+    const storedAccountId = localStorage.getItem('account_id')
+    if (storedAccountId) {
+      setAccountId(storedAccountId)
+      setAuthenticated(true)
+    } else {
+      window.location.href = '/login'
+    }
+  }, [])
+
+  // Fetch submissions on load (for dashboard) and when switching to clients
+  useEffect(() => {
+    if (accountId && (activeView === 'dashboard' || activeView === 'clients')) {
       fetchSubmissions()
     }
-  }, [activeView, accountId])
+  }, [accountId, activeView, fetchSubmissions])
 
   if (!authenticated) {
     return (
@@ -106,13 +93,16 @@ export default function AdminPage() {
         {/* Content Area */}
         <main className="flex-1 overflow-auto">
           <div className="px-6 lg:px-8 py-8">
-            {activeView === 'form-builder' ? (
-              <FormBuilderView accountId={accountId} />
-            ) : activeView === 'clients' ? (
-              <ClientsView submissions={submissions} loading={loading} />
-            ) : (
-              <SettingsView accountId={accountId} />
+            {activeView === 'dashboard' && (
+              <DashboardView
+                submissions={submissions}
+                loading={loading}
+                onNavigateToClients={() => setActiveView('clients')}
+              />
             )}
+            {activeView === 'form-builder' && <FormBuilderView accountId={accountId} />}
+            {activeView === 'clients' && <ClientsView submissions={submissions} loading={loading} />}
+            {activeView === 'settings' && <SettingsView accountId={accountId} />}
           </div>
         </main>
       </div>
