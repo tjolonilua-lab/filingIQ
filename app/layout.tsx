@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
+import { Analytics } from '@vercel/analytics/next'
 
 export function generateMetadata(): Metadata {
   return {
@@ -23,6 +24,7 @@ export default function RootLayout({
             {children}
           </AnalyticsProvider>
         </ErrorBoundary>
+        <Analytics />
       </body>
     </html>
   )
